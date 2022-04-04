@@ -19,18 +19,19 @@ from scipy.spatial.transform import Rotation as R
 from typing import List, Tuple
 from numpy import genfromtxt
 from tensorflow.keras import mixed_precision
-mixed_precision.set_global_policy('mixed_float16')
-
-!pip install nptyping
 from nptyping import NDArray, Float
-from google.colab import drive
-drive.mount('/content/gdrive')
+#plt.style.use('classic')
+import plotly.express as px
+import plotly.graph_objects as go
+import pandas as pd
+from scipy.spatial.transform import Rotation as R
+import kaleido
+mixed_precision.set_global_policy('mixed_float16')
+from sklearn.cluster import KMeans
 
 NUM_P_SAMPLES = 949207 #3800000 
 NUM_N_SAMPLES = 0
 # 0.00468998309224844, -0.0009492466342635453, 0.12456292659044266
-#np.random.seed(2449890217)
-print(np.random.get_state()[1][0])
 
 def generate_negative_sample_motion_sequences(
             input_data: NDArray[float],
@@ -276,12 +277,9 @@ def generate_motion_sequence_embedding1(
 
 # https://keras.io/examples/generative/vae/
 
-data = genfromtxt("gdrive/My Drive/Collabs/shepherd/iser_2020/figures/" +
-                      "figure_3_sys_id/data_models_other/" +
-                        "data_Apr_01_20221.csv", delimiter=',', 
+data = genfromtxt("data/data_Apr_01_20221.csv", delimiter=',',
                         invalid_raise = False)
 
-data.shape
 
 sequence_window = 20
 #(X, y) = generate_data_and_labels(data, sequence_window)
@@ -311,18 +309,10 @@ nn_model = keras.models.load_model('embedding_model.hdf5',
         sequence_window=sequence_window)
 positive_samples = X[:NUM_P_SAMPLES, :]
 
-from sklearn.cluster import KMeans
 
-kmeans = KMeans(n_clusters=10, random_state=0).fit(prediction_labels)
 
-#plt.style.use('classic')
-import plotly.express as px
-import plotly.graph_objects as go
-import pandas as pd
-from scipy.spatial.transform import Rotation as R
+kmeans = KMeans(n_clusters=3, random_state=0).fit(prediction_labels)
 
-!pip install -U kaleido
-import kaleido
 
 SUB_SAMPLES = 20000
 
@@ -392,6 +382,7 @@ fig.add_trace(go.Scatter3d(x = target[:, 0], y = target[:, 1],
 #    width=700,
 #    margin=dict(r=20, l=10, b=10, t=10))
 fig.show()
+fig.write_image('embeddings.png', engine = 'kaleido')
 
 # Easy way to get intermediate layers:
 embedding = nn_model.predict(X[:SUB_SAMPLES, :])
@@ -473,13 +464,13 @@ plt.title("Observation Space (Raw)")
 plt.legend()
 plt.savefig("sensor_readings.png", dpi=300, transparent=True)
 
-from google.colab import drive
-drive.mount('/content/drive')
+#from google.colab import drive
+#drive.mount('/content/drive')
 
-from google.colab import files
+#from google.colab import files
 
-!zip -r /content/file.zip /content/gif_rotating
-files.download('file.zip')
+#!zip -r /content/file.zip /content/gif_rotating
+#files.download('file.zip')
 
 
 
@@ -512,6 +503,6 @@ files.download('file.zip')
 #     ani = FuncAnimation(fig, update, frames=frames, 
 #                         init_func=init, blit=True, interval=33.3)
 
-from IPython.core.display import Video
-ani.save('movie01.mp4', fps=30, extra_args=['-vcodec', 'libx264', '-crf', '26'])
-Video("movie01.mp4")
+#from IPython.core.display import Video
+#ani.save('movie01.mp4', fps=30, extra_args=['-vcodec', 'libx264', '-crf', '26'])
+#Video("movie01.mp4")
