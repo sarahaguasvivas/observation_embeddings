@@ -220,8 +220,7 @@ def generate_motion_sequence_embedding(
     embedding_output_dim = 3,
     record = False,
 ):
-    data = data.astype(np.float16)
-    data = min_max_normalization(data, 0, 10000).astype(np.int)
+    data = 10000 // 200 * data.astype(np.float16)
     model = get_model(embedding_output_dim = embedding_output_dim,
                       vocabulary_size = 10000,
                       input_length = data.shape[1])
@@ -252,7 +251,7 @@ if __name__=='__main__':
     sequence_window = 20
     SUB_SAMPLES = 20000
     EMBEDDING_LAYER = 3
-    TRAINING = False
+    TRAINING = True
     (X, y)  = generate_positive_data_and_labels(data, sequence_window)
     if TRAINING:
         (embedding_model, weight_logs) = generate_motion_sequence_embedding(X, y, 3)
