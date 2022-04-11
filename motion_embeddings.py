@@ -30,7 +30,7 @@ from scipy.spatial import KDTree
 mixed_precision.set_global_policy('mixed_float16')
 from sklearn.cluster import KMeans
 
-NUM_P_SAMPLES = 949207 #3800000 
+NUM_P_SAMPLES = 949207 #3800000
 NUM_N_SAMPLES = 0
 # 0.00468998309224844, -0.0009492466342635453, 0.12456292659044266
 
@@ -197,22 +197,13 @@ def min_max_normalization(x, new_min, new_max):
 def get_model(
               embedding_output_dim,
               vocabulary_size,
-              input_length,
 ):
-    input_layer = keras.layers.Input(shape=(input_length))
+    input_layer = keras.layers.Input(shape=(1))
     x = keras.layers.Embedding(input_dim=vocabulary_size,
                                 output_dim=embedding_output_dim,
-                                input_length=input_length,
                                 embeddings_initializer='random_normal'
                                 )(input_layer)
-    #transp = keras.layers.Permute((2, 1))(em)
-    #x = keras.layers.Dot(axes=(1, 2))([em, transp])
-    #x = keras.backend.mean(x, axis=1)
     x = keras.layers.Flatten()(x)
-    x = keras.layers.Dense(3, activation = 'relu')(x)
-    x = keras.layers.Reshape((-1, 1))(x)
-    x = keras.layers.GRU(20)(x)
-    x = keras.layers.Dense(10, activation = 'relu')(x)
     x = keras.layers.Dense(3, activation='tanh')(x)
     model = keras.Model(inputs=input_layer, outputs=x)
     model.summary()
@@ -225,9 +216,9 @@ def generate_motion_sequence_embedding(
     record = False,
 ):
     data =  data.astype(np.float16)
+    kmeans = KMeans(n_clusters = 300, random_state=0).fit(data)
     model = get_model(embedding_output_dim = embedding_output_dim,
-                      vocabulary_size = 144,
-                      input_length = data.shape[1])
+                      vocabulary_size = 300)
     model.compile(loss='mse', optimizer="adam", metrics=["mse"])
     weights = None
     if record:
@@ -240,7 +231,8 @@ def generate_motion_sequence_embedding(
         for train,test in kfold.split(data, labels):
           X_train = data[train]
           y_train = labels[train]
-          model.fit(X_train, y_train, epochs = 10, verbose = 1, batch_size = 1000,
+          train_x = kmeans.labels_[train].reshape(-1, 1)
+          model.fit(train_x, y_train, epochs = 10, verbose = 1, batch_size = 1000,
                       callbacks= [save])
     else:
       kfold = TimeSeriesSplit(n_splits = 5)
@@ -248,8 +240,9 @@ def generate_motion_sequence_embedding(
       for train,test in kfold.split(data, labels):
         X_train = data[train]
         y_train = labels[train]
-        model.fit(data, labels, epochs = 5, verbose = 1, batch_size = 1000)
-    return (model, weights)
+        train_x = kmeans.labels_[train].reshape(-1, 1)
+        model.fit(train_x, y_train, epochs = 5, verbose = 1, batch_size = 1000)
+    return (model, kmeans, weights)
 
 if __name__=='__main__':
     sequence_window = 20
@@ -258,12 +251,13 @@ if __name__=='__main__':
     TRAINING = True
     (X, y) = generate_positive_data_and_labels(data, sequence_window)
     if TRAINING:
-        (embedding_model, weight_logs) = generate_motion_sequence_embedding(X, y, 3)
+        (embedding_model, clusters, weight_logs) = generate_motion_sequence_embedding(X, y, 3)
         embedding_model.save('embedding_model.hdf5', 'hdf5')
+        clusters.save("clusters")
     nn_model = keras.models.load_model('embedding_model.hdf5',
                                                   compile = False)
-    kmeans = KMeans(n_clusters = 3, random_state=0).fit(y)
 
+    kmeans = KMeans(n_clusters = 3, random_state=0).fit(y)
     df = pd.DataFrame(data = y[:SUB_SAMPLES, :],
                       columns = ['x', 'y', 'z'])
     df['partitions'] = kmeans.labels_[:SUB_SAMPLES].astype(str).reshape(-1, 1)
@@ -271,11 +265,11 @@ if __name__=='__main__':
     fig.show()
     fig.write_image('task_space.png', engine = 'kaleido')
 
-    embedding = nn_model.predict(X[:SUB_SAMPLES, :])
+    embedding = nn_model.predict(clusters.predict(X[:SUB_SAMPLES, :]))
     embedding_layer_output = keras.Model(nn_model.input,
                                          nn_model.layers[EMBEDDING_LAYER].output)
-    embedding_predict = embedding_layer_output.predict(X[:SUB_SAMPLES, :])
-    df_embedding = pd.DataFrame(data = embedding_predict.mean(axis = 1),
+    embedding_predict = embedding_layer_output.predict(clusters.predict(X[:SUB_SAMPLES, :]))
+    df_embedding = pd.DataFrame(data = embedding_predict[:, 0, :],
                       columns = ['dim_0', 'dim_1', 'dim_2'])
 
     df_embedding['partitions'] = kmeans.labels_[:SUB_SAMPLES].astype(str).reshape(-1, 1)
