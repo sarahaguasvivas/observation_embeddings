@@ -30,7 +30,7 @@ from scipy.spatial import KDTree
 mixed_precision.set_global_policy('mixed_float16')
 from sklearn.cluster import KMeans
 
-NUM_P_SAMPLES = 949207 #3800000
+NUM_P_SAMPLES = 100000 #949207 #3800000
 NUM_N_SAMPLES = 0
 # 0.00468998309224844, -0.0009492466342635453, 0.12456292659044266
 
@@ -198,7 +198,7 @@ def get_model(
               embedding_output_dim,
               vocabulary_size,
 ):
-    input_layer = keras.layers.Input(shape=(1))
+    input_layer = keras.layers.Input(shape=(1), dtype = "float16")
     x = keras.layers.Embedding(input_dim=vocabulary_size,
                                 output_dim=embedding_output_dim,
                                 embeddings_initializer='random_normal'
@@ -253,7 +253,7 @@ if __name__=='__main__':
     if TRAINING:
         (embedding_model, clusters, weight_logs) = generate_motion_sequence_embedding(X, y, 3)
         embedding_model.save('embedding_model.hdf5', 'hdf5')
-        clusters.save("clusters")
+
     nn_model = keras.models.load_model('embedding_model.hdf5',
                                                   compile = False)
 
