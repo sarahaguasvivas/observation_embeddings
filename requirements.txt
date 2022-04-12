@@ -1,0 +1,11 @@
+numpy
+matplotlib
+pandas
+plotly
+tensorflow
+keras
+kaleido
+scipy
+nptyping
+scikit-learn
+typing

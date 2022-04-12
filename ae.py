@@ -44,8 +44,9 @@ class Autoencoder(keras.Model):
 
 def get_simple_encoder(latent_dim=3, seq_window=3):
     encoder_inputs = keras.Input(shape=(11 * seq_window,))
-    x = keras.layers.Dense(55, activation='relu')(encoder_inputs)
-    x = keras.layers.Dense(22, activation='relu')(x)
+    #x = keras.layers.Dense(55, activation='relu')(encoder_inputs)
+    #x = keras.layers.Dense(22, activation='relu')(x)
+    x = keras.layers.Dense(5, activation = 'relu')(encoder_inputs)
     x = keras.layers.Dense(latent_dim)(x)
     encoder = keras.Model(encoder_inputs, x, name='encoder')
     encoder.summary()
@@ -53,8 +54,9 @@ def get_simple_encoder(latent_dim=3, seq_window=3):
 
 def get_simple_decoder(latent_dim=3, seq_window=3):
     latent_inputs = keras.Input(shape=(latent_dim,))
-    x = keras.layers.Dense(22, activation='sigmoid')(latent_inputs)
-    x = keras.layers.Dense(55, activation='sigmoid')(x)
+    x = keras.layers.Dense(5, activation = 'sigmoid')(latent_inputs)
+    #x = keras.layers.Dense(22, activation='sigmoid')(latent_inputs)
+    #x = keras.layers.Dense(55, activation='sigmoid')(x)
     x = keras.layers.Dense(seq_window * 11)(x)
     decoder = keras.Model(latent_inputs, x, name='decoder')
     decoder.summary()
@@ -180,44 +182,62 @@ def generate_motion_sequence_embedding_ae(
             model.fit([X_train, X_train], labels, epochs=10, verbose=1, batch_size=1000)
     return (model, encoder, decoder, weights)
 
+def normalize_coordinates(x):
+    return x / (np.max(x, axis = 0) - np.min(x, axis = 0))
+
+def pairwise_distance_ratio(x, y):
+    """
+        x is embedding space,
+        y is in task space
+    """
+    assert(x.shape == y.shape)
+    d1 = 0.0
+    d2 = 0.0
+    for j in range(x.shape[0]):
+        for i in range(j + 1, x.shape[0] - 1):
+            d1 += np.linalg.norm(x[j, :] - x[i, :])
+            d2 += np.linalg.norm(y[j, :] - y[i, :])
+    print(d1, d2, d1/ d2)
+    return d1 / d2
+
 if __name__ == '__main__':
     import plotly.express as px
     import pandas as pd
     sequence_window = 1
-    SUB_SAMPLES = 40000
-    TRAINING = True
+    SUB_SAMPLES = 1000
+    TRAINING = False
 
     (X, y) = generate_positive_data_and_labels(data, sequence_window)
     if TRAINING:
         (model, encoder, decoder, weight_logs) = \
             generate_motion_sequence_embedding_ae(X, y, 3, sequence_window)
-        encoder.save('encoder_ae.hdf5', 'hdf5')
-        decoder.save('decoder_ae.hdf5', 'hdf5')
+        encoder.save('models/encoder_ae.hdf5', 'hdf5')
+        decoder.save('models/decoder_ae.hdf5', 'hdf5')
 
-    encoder = keras.models.load_model('encoder_ae.hdf5', compile=False)
+    encoder = keras.models.load_model('models/encoder_ae.hdf5', compile=False)
 
-    kmeans = KMeans(n_clusters=3, random_state=0).fit(y[:SUB_SAMPLES, :])
+    kmeans = KMeans(n_clusters = 3, random_state = 0).fit(y[:SUB_SAMPLES, :])
 
     df = pd.DataFrame(data=y[:SUB_SAMPLES, :],
                       columns=['x', 'y', 'z'])
+
     df['partitions'] = kmeans.labels_[:SUB_SAMPLES].astype(str).reshape(-1, 1)
     fig = px.scatter_3d(df, x='x', y='y', z='z', color='partitions')
-    fig.update_layout(
-        scene=dict(
-            xaxis=dict(nticks=4, range=[-0.1, 0.1], ),
-            yaxis=dict(nticks=4, range=[-0.03, 0.03], ),
-            zaxis=dict(nticks=4, range=[-0.06, 0.03], ), ),
-        width=700,
-        margin=dict(r=20, l=10, b=10, t=10))
     fig.show()
 
     embedding_output = encoder.predict(X[:SUB_SAMPLES, :])
-
     df_embedding = pd.DataFrame(data=embedding_output,
                                 columns=['dim_0', 'dim_1', 'dim_2'])
 
     df_embedding['partitions'] = kmeans.labels_[:SUB_SAMPLES].astype(str).reshape(-1, 1)
     fig = px.scatter_3d(df_embedding, x='dim_0', y='dim_1',
                         z='dim_2', color='partitions')
-
     fig.show()
+
+    normalized_embedding = normalize_coordinates(embedding_output[:SUB_SAMPLES, :])
+    normalized_task_space = normalize_coordinates(y[:SUB_SAMPLES, :])
+    print(pairwise_distance_ratio(normalized_embedding, normalized_task_space))
+    randomized_encoder = get_simple_encoder(3, sequence_window)
+    randomized_output = randomized_encoder.predict(X[:SUB_SAMPLES, :])
+    normalized_random_embedding = normalize_coordinates(randomized_output)
+    print(pairwise_distance_ratio(normalized_random_embedding, normalized_task_space))
