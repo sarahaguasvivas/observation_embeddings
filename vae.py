@@ -27,7 +27,7 @@ import plotly.graph_objects as go
 import pandas as pd
 from sklearn.cluster import KMeans
 
-NUM_P_SAMPLES = 949207 #900000
+NUM_P_SAMPLES = 100000 #949207 #900000
 NUM_N_SAMPLES = 0
 
 data = genfromtxt("data/data_Apr_01_20221.csv", delimiter=',',
@@ -249,7 +249,8 @@ if __name__ == '__main__':
         encoder.save('encoder_vae.hdf5', 'hdf5')
         decoder.save('decoder_vae.hdf5', 'hdf5')
 
-    encoder = keras.models.load_model('encoder_vae.hdf5', compile=False)
+    encoder = keras.models.load_model('encoder_vae.hdf5', compile=False,
+                                      custom_objects = {'Sampling' : Sampling})
     embedding_output = encoder.predict(X[:SUB_SAMPLES, :].reshape(-1,sequence_window,
                                                                   NUM_CHANNELS))
     kmeans = KMeans(n_clusters=3, random_state=0).fit(y)
@@ -257,13 +258,13 @@ if __name__ == '__main__':
                       columns=['x', 'y', 'z'])
     df['partitions'] = kmeans.labels_[:SUB_SAMPLES].astype(str).reshape(-1, 1)
     fig = px.scatter_3d(df, x='x', y='y', z='z', color='partitions')
-    fig.update_layout(
-        scene=dict(
-            xaxis=dict(nticks=4, range=[-0.1, 0.1], ),
-            yaxis=dict(nticks=4, range=[-0.03, 0.03], ),
-            zaxis=dict(nticks=4, range=[-0.06, 0.03], ), ),
-        width=700,
-        margin=dict(r=20, l=10, b=10, t=10))
+    #fig.update_layout(
+    #    scene=dict(
+    #        xaxis=dict(nticks=4, range=[-0.1, 0.1], ),
+    #        yaxis=dict(nticks=4, range=[-0.03, 0.03], ),
+    #        zaxis=dict(nticks=4, range=[-0.06, 0.03], ), ),
+    #    width=700,
+    #    margin=dict(r=20, l=10, b=10, t=10))
     fig.show()
     df_embedding = pd.DataFrame(data = embedding_output[2],
                       columns = ['dim_0', 'dim_1', 'dim_2'])

@@ -213,7 +213,7 @@ if __name__ == '__main__':
 
     embedding_output = encoder.predict(X[:SUB_SAMPLES, :])
 
-    df_embedding = pd.DataFrame(data=embedding_output[:, :3],
+    df_embedding = pd.DataFrame(data=embedding_output,
                                 columns=['dim_0', 'dim_1', 'dim_2'])
 
     df_embedding['partitions'] = kmeans.labels_[:SUB_SAMPLES].astype(str).reshape(-1, 1)

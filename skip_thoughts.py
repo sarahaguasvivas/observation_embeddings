@@ -23,7 +23,7 @@ from sklearn.cluster import KMeans
 from nptyping import NDArray, Float
 
 NUM_N_SAMPLES = 0
-NUM_P_SAMPLES = 500 #949207  # 900000
+NUM_P_SAMPLES = 100000 #949207  # 900000
 data = genfromtxt("data/data_Apr_01_20221.csv", delimiter=',',
                   invalid_raise=False)
 
@@ -146,7 +146,7 @@ def generate_motion_sequence_embedding_ae(
                                           seq_window=sequence_window)
     model = SkipThoughtsAutoencoder(embedding_output_dim, encoder, decoder_previous, decoder_next)
 
-    model.compile(optimizer="adam", loss=['kl_divergence', 'kl_divergence'])
+    model.compile(optimizer="adam", loss=['mse', 'mse'])
 
     weights = None
     if record:
