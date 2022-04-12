@@ -193,12 +193,13 @@ def pairwise_distance_ratio(x, y):
     assert(x.shape == y.shape)
     d1 = 0.0
     d2 = 0.0
+    d = 0.0
     for j in range(x.shape[0]):
         for i in range(j + 1, x.shape[0] - 1):
-            d1 += np.linalg.norm(x[j, :] - x[i, :])
-            d2 += np.linalg.norm(y[j, :] - y[i, :])
-    print(d1, d2, d1/ d2)
-    return d1 / d2
+            d1 = np.linalg.norm(x[j, :] - x[i, :])
+            d2 = np.linalg.norm(y[j, :] - y[i, :])
+            d += d1 / d2
+    return d / x.shape[0]
 
 if __name__ == '__main__':
     import plotly.express as px
@@ -236,8 +237,13 @@ if __name__ == '__main__':
 
     normalized_embedding = normalize_coordinates(embedding_output[:SUB_SAMPLES, :])
     normalized_task_space = normalize_coordinates(y[:SUB_SAMPLES, :])
-    print(pairwise_distance_ratio(normalized_embedding, normalized_task_space))
+    print("trained:", pairwise_distance_ratio(normalized_embedding, normalized_task_space))
     randomized_encoder = get_simple_encoder(3, sequence_window)
     randomized_output = randomized_encoder.predict(X[:SUB_SAMPLES, :])
+    df_random = pd.DataFrame(data = randomized_output, columns = ['x', 'y', 'z'])
+    df_random['partitions'] = kmeans.labels_[:SUB_SAMPLES].astype(str).reshape(-1, 1)
+    fig = px.scatter_3d(df_random, x='x', y='y', z='z', color='partitions')
+    fig.show()
+
     normalized_random_embedding = normalize_coordinates(randomized_output)
-    print(pairwise_distance_ratio(normalized_random_embedding, normalized_task_space))
+    print("randomized:", pairwise_distance_ratio(normalized_random_embedding, normalized_task_space))
