@@ -46,15 +46,17 @@ def get_simple_encoder(latent_dim=3, seq_window=3):
     encoder_inputs = keras.Input(shape=(11 * seq_window,))
     #x = keras.layers.Dense(55, activation='relu')(encoder_inputs)
     #x = keras.layers.Dense(22, activation='relu')(x)
-    x = keras.layers.Dense(5, activation = 'relu')(encoder_inputs)
-    x = keras.layers.Dense(latent_dim)(x)
-    encoder = keras.Model(encoder_inputs, x, name='encoder')
+    x = keras.layers.Dense(11, activation = 'relu',
+                           kernel_initializer='random_normal')(encoder_inputs)
+    x = keras.layers.Dense(latent_dim , kernel_initializer='random_normal' )(x)
+    encoder = keras.Model(encoder_inputs, x,
+                           name='encoder')
     encoder.summary()
     return encoder
 
 def get_simple_decoder(latent_dim=3, seq_window=3):
     latent_inputs = keras.Input(shape=(latent_dim,))
-    x = keras.layers.Dense(5, activation = 'sigmoid')(latent_inputs)
+    x = keras.layers.Dense(11, activation = 'sigmoid')(latent_inputs)
     #x = keras.layers.Dense(22, activation='sigmoid')(latent_inputs)
     #x = keras.layers.Dense(55, activation='sigmoid')(x)
     x = keras.layers.Dense(seq_window * 11)(x)
@@ -158,7 +160,7 @@ def generate_motion_sequence_embedding_ae(
                     label_size=labels.shape[1])
     model = Autoencoder(embedding_output_dim, encoder, decoder, task)
 
-    model.compile(optimizer="adam", loss=['kl_divergence', 'mse'])
+    model.compile(optimizer="adam", loss=['mse', 'mse'])
 
     weights = None
     if record:
@@ -171,7 +173,7 @@ def generate_motion_sequence_embedding_ae(
         for train, test in kfold.split(data, labels):
             x_train = data[train]
             y_train = labels[train]
-            model.fit(x_train, [x_train, y_train], epochs=10, verbose=1, batch_size=1000,
+            model.fit(x_train, [x_train, y_train], epochs=20, verbose=1, batch_size=1000,
                       callbacks=[save], validation_data=(X[test], [X[test], y[test]]))
     else:
         kfold = TimeSeriesSplit(n_splits=5)
@@ -179,7 +181,7 @@ def generate_motion_sequence_embedding_ae(
         for train, test in kfold.split(data, labels):
             X_train = data[train]
             y_train = labels[train]
-            model.fit([X_train, X_train], labels, epochs=10, verbose=1, batch_size=1000)
+            model.fit([X_train, X_train], labels, epochs=20, verbose=1, batch_size=1000)
     return (model, encoder, decoder, weights)
 
 def normalize_coordinates(x):
@@ -205,7 +207,7 @@ if __name__ == '__main__':
     import plotly.express as px
     import pandas as pd
     sequence_window = 1
-    SUB_SAMPLES = 1000
+    SUB_SAMPLES = 10000
     TRAINING = False
 
     (X, y) = generate_positive_data_and_labels(data, sequence_window)
