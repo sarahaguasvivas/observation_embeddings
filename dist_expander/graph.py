@@ -5,10 +5,10 @@ from typing import Dict, Set
 from nptyping import NDArray, Float
 
 class Node:
-    def __init__(self, key : BitSet,
+    def __init__(self, key : [BitSet, BitSet],
                     label : NDArray = None):
         self.id = None
-        self.key : BitSet = key
+        self.key : [BitSet, BitSet] = key
         self.value : NDArray = label
 
 class Graph:
@@ -21,8 +21,8 @@ class Graph:
         self.m = label_size
         self.edges = None
         self.edge_dict : Dict[Node, Set[Node]] = {}
-        self.s = np.empty((0, 0))
-        self.weights = np.empty((0, 0))
+        self.s = np.empty((0, 0)).reshape(0, 0)
+        self.weights = np.empty((0, 0)).reshape(0, 0)
         self.y = np.empty((0, self.m))
         self.y_hat = np.empty((0, self.m))
         self.upd = np.empty((0, self.m))
@@ -32,12 +32,14 @@ class Graph:
         self.edge_dict[node] = []
 
         # making node declaration mandatory
-        self.s = np.pad(self.s, [(0, 1), (0, 1)],
-                            mode='constant',
-                            constant_values=0)
-        self.weights = np.pad(self.weights, [(0, 1), (0, 1)],
-                            mode='constant',
-                            constant_values=0)
+        old_seed_matrix = self.s.copy()
+        self.s = np.zeros((self.v + 1, self.v + 1))
+        self.s[:self.v, :self.v] = old_seed_matrix
+
+        old_weight_matrix = self.weights.copy()
+        self.weights = np.zeros((self.v + 1, self.v + 1))
+        self.weights[:self.v, :self.v] = old_weight_matrix
+
         self.y = np.vstack((self.y, np.array([0]*self.m)))
         self.y_hat = np.vstack((self.y_hat, np.array([None]*self.m)))
         self.upd = np.vstack((self.upd, np.array([1/self.m]*self.m)))
