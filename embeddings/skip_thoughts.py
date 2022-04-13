@@ -175,16 +175,16 @@ if __name__ == '__main__':
     import pandas as pd
     sequence_window = 1
     SUB_SAMPLES = 40000
-    TRAINING = True
+    TRAINING = False
 
     (X, y) = generate_positive_data_and_labels(data, sequence_window)
     if TRAINING:
         (model, encoder, decoder_p, decoder_n, weight_logs) = \
             generate_motion_sequence_embedding_ae(X, y, 3, sequence_window)
-        encoder.save('encoder_sk.hdf5', 'hdf5')
-        decoder_p.save('decoder_prev_st.hdf5', 'hdf5')
-        decoder_n.save('decoder_next_st.hdf5', 'hdf5')
-    encoder = keras.models.load_model('encoder_sk.hdf5', compile=False)
+        encoder.save('models/encoder_sk.hdf5', 'hdf5')
+        decoder_p.save('models/decoder_prev_st.hdf5', 'hdf5')
+        decoder_n.save('models/decoder_next_st.hdf5', 'hdf5')
+    encoder = keras.models.load_model('models/encoder_sk.hdf5', compile=False)
 
     kmeans = KMeans(n_clusters=3, random_state=0).fit(y[:SUB_SAMPLES, :])
 

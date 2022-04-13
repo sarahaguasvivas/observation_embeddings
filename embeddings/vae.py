@@ -31,7 +31,7 @@ NUM_P_SAMPLES = 100000 #949207 #900000
 NUM_N_SAMPLES = 0
 
 data = genfromtxt("data/data_Apr_01_20221.csv", delimiter=',',
-                        invalid_raise = False)
+                  invalid_raise = False)
 
 def min_max_normalization(x, new_min, new_max):
   current_min = np.min(x, axis = 0)
@@ -237,7 +237,7 @@ def generate_motion_sequence_embedding_vae(
 if __name__ == '__main__':
     import pandas as pd
     SUB_SAMPLES = 40000
-    TRAINING = True
+    TRAINING = False
     NUM_CHANNELS = 11
     sequence_window = 10
 
@@ -246,10 +246,10 @@ if __name__ == '__main__':
         (model, encoder, decoder, weight_logs) = \
                               generate_motion_sequence_embedding_vae(X, y, 3,
                                            sequence_window, record = False)
-        encoder.save('encoder_vae.hdf5', 'hdf5')
-        decoder.save('decoder_vae.hdf5', 'hdf5')
+        encoder.save('models/encoder_vae.hdf5', 'hdf5')
+        decoder.save('models/decoder_vae.hdf5', 'hdf5')
 
-    encoder = keras.models.load_model('encoder_vae.hdf5', compile=False,
+    encoder = keras.models.load_model('models/encoder_vae.hdf5', compile=False,
                                       custom_objects = {'Sampling' : Sampling})
     embedding_output = encoder.predict(X[:SUB_SAMPLES, :].reshape(-1,sequence_window,
                                                                   NUM_CHANNELS))

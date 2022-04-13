@@ -248,13 +248,13 @@ if __name__=='__main__':
     sequence_window = 20
     SUB_SAMPLES = 50000
     EMBEDDING_LAYER = 1
-    TRAINING = True
+    TRAINING = False
     (X, y) = generate_positive_data_and_labels(data, sequence_window)
     if TRAINING:
         (embedding_model, clusters, weight_logs) = generate_motion_sequence_embedding(X, y, 3)
-        embedding_model.save('embedding_model.hdf5', 'hdf5')
+        embedding_model.save('models/embedding_model.hdf5', 'hdf5')
 
-    nn_model = keras.models.load_model('embedding_model.hdf5',
+    nn_model = keras.models.load_model('models/embedding_model.hdf5',
                                                   compile = False)
 
     kmeans = KMeans(n_clusters = 3, random_state=0).fit(y)
