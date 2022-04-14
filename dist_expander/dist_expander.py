@@ -27,7 +27,7 @@ NUM_SAMPLES = 949207
 # as a 16-bit encoding
 BIT_ENCODING = 16
 
-SIMILARITY_SCORE_THRESHOLD = 1
+SIMILARITY_SCORE_THRESHOLD = 30
 
 def similarity_score(node0 : Node, node1: Node,
                      latent_dim : int = 2)->float:
@@ -84,7 +84,7 @@ class DistExpander:
                         # Broadcast:
                         neigh.neighbor_distrib[node_i] = self.graph.y_hat[node_idx]
                         # Receive message:
-                        node_i.m_vl += self.mu_2 / self.graph.weights[node_idx, neigh.id] # would be multiplied
+                        node_i.m_vl += self.mu_2 / (self.graph.weights[node_idx, neigh.id] + 1e-9)
 
                 for node_idx in self.chunks[i].tolist():
                     # receive mu from neighbors u with corresponding

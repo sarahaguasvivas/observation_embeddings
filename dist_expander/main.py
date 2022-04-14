@@ -43,17 +43,17 @@ if __name__ == '__main__':
     graph, indices = build_first_graph(
         data=x,
         labels=y,
-        percentage=0.0001,
+        percentage=0.0002,
         autoencoder=autoencoder)
-    ax = sns.heatmap(graph.weights)
+    ax = sns.heatmap(graph.weights == 0)
     plt.savefig('heat_map.png', dpi = 300)
 
     de = DistExpander(graph=graph,
-                      mu_1 = 1e-3,
-                      mu_2 = 1e-3,
+                      mu_1 = 1e-1,
+                      mu_2 = 1e-5,
                       mu_3 = 1e-3,
-                      partitions = 10,
-                      max_iter = 100
+                      partitions = 100,
+                      max_iter = 10
                       )
     de.partition_graph()
     de.run()
