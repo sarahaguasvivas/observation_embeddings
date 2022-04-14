@@ -1,7 +1,7 @@
 import numpy as np
 from numpy import genfromtxt
 from helpers.bitset import BitSet
-from typing import Dict, Set, Tuple
+from typing import Dict, Set, Tuple, List
 from nptyping import NDArray, Float
 
 class Node:
@@ -10,6 +10,9 @@ class Node:
         self.id = None
         self.key : [BitSet, BitSet] = key
         self.value : NDArray = label
+        self.neighbor_distrib: Dict[Node, List[float]] = {}
+        self.neighbors = 0
+        self.m_vl = 0.0
 
 # This is an undirected graph
 class Graph:
@@ -30,7 +33,7 @@ class Graph:
         self.node_dict : Dict[int, Node] = {}
 
     def add_node(self, node : Node):
-        node.id = 'n_' + str(self.v)
+        node.id = self.v
         self.node_dict[self.v] = node
         self.edge_dict[node] = []
 
@@ -66,6 +69,8 @@ class Graph:
             self.edge_dict[node1] += [node2]
         if node1 not in self.edge_dict[node2]:
             self.edge_dict[node2] += [node1]
+        node2.neighbor_distrib[node1] = [0]*self.m
+        node1.neighbor_distrib[node2] = [0]*self.m
 
 if __name__ == '__main__':
     graph = Graph()

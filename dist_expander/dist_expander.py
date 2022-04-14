@@ -93,14 +93,26 @@ class DistExpander:
     def run(self):
         for iter in range(self.max_iter):
             for i in range(self.partitions):
-                for node_idx in range(self.chunks[i]):
+                for node_idx in self.chunks[i].tolist():
                     # broadcast previous label distribution to all neigh
-                    pass
+                    node_i = self.graph.node_dict[node_idx]
+                    node_i.m_vl= self.mu_1 * self.graph.s[node_idx, node_idx] + self.mu_3
+                    for neigh in self.graph.edge_dict[node_i]:
+                        # Broadcast:
+                        neigh.neighbor_distrib[node_i] = self.graph.y_hat[node_idx]
+                        # Receive message:
+                        node_i.m_vl += self.mu_2 * self.graph.weights[node_idx, neigh.id]
 
-                for node_idx in range(self.chunks[i]):
+                for node_idx in self.chunks[i].tolist():
                     # receive mu from neighbors u with corresponding
                     # message weights, process each message
-                    pass
+                    node_i = self.graph.node_dict[node_idx]
+                    for l in range(self.graph.m):
+                        self.graph.y_hat[node_idx, l] = 1./node_i.m_vl * \
+                                         (self.mu_1 * self.graph.s[node_idx, node_idx] * self.graph.y[node_idx, l]) + \
+                                         self.mu_3 / self.graph.m
+                        for neigh in self.graph.edge_dict[node_i]:
+                            self.graph.y_hat[node_idx, l] += self.mu_2 * node_i.neighbor_distrib[neigh][l]
 
 def build_first_graph(
                         data : NDArray,

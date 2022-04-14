@@ -45,8 +45,16 @@ if __name__ == '__main__':
         labels=y,
         percentage=0.0001,
         autoencoder=autoencoder)
+    ax = sns.heatmap(graph.weights)
+    plt.savefig('heat_map.png', dpi = 300)
 
-    de = DistExpander(graph=graph)
+    de = DistExpander(graph=graph,
+                      mu_1 = 1,
+                      mu_2 = 1,
+                      mu_3 = 1,
+                      partitions = 10,
+                      max_iter = 10
+                      )
     de.partition_graph()
-
+    de.run()
 
