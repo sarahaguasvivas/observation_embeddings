@@ -38,7 +38,7 @@ if __name__ == '__main__':
         '../models/encoder_ae.hdf5',
         compile=False
     )
-    graph = build_first_graph(
+    graph, unlabeled_indices = build_first_graph(
         data=x,
         labels=y,
         percentage=0.001,
