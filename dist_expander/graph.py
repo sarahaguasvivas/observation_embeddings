@@ -51,9 +51,13 @@ class Graph:
         if node.value is not None:
             self.vl += 1
             self.s[-1, -1] = 1.
+            self.y[-1, :] = node.value
+            self.y_hat[-1, :] = node.value
         else:
             self.vu += 1
             self.s[-1, -1] = 0.
+            self.y[-1, :] = 1. / self.m
+            self.y_hat[-1, :] = 1. / self.m
         self.v += 1
 
     def add_edge(self, node1 : Node, node2 : Node):

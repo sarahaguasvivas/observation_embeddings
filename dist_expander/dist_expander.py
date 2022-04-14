@@ -61,12 +61,15 @@ def build_first_graph(
             sampled from data
     """
     graph = Graph()
-    sample = data[np.random.choice(data.shape[0],
-                                    int(data.shape[0]*percentage),
-                                   replace=False)]
+    indices =np.random.choice(data.shape[0],
+                        int(data.shape[0]*(2*percentage)), replace= False)
+    unlabeled_indices = indices[indices.shape[0]//2:]
+    sample = data[indices]
+    sample_labeled = sample[:sample.shape[0]//2, :]
+    sample_unlabeled = sample[sample.shape[0]//2:, :]
     assert autoencoder is not None
-    embeddings = autoencoder.predict(sample)
-    for i in range(sample.shape[0]):
+    embeddings = autoencoder.predict(sample_labeled)
+    for i in range(sample_labeled.shape[0]):
         bs1 = BitSet(embeddings[i, 0])
         bs2 = BitSet(embeddings[i, 1])
         node = Node(key=[bs1, bs2], label=labels[i, :])
@@ -75,7 +78,18 @@ def build_first_graph(
             sim_score = similarity_score(node, graph.node_dict[j])
             if sim_score < 100:
                 graph.add_edge(node, graph.node_dict[j])
-    return graph
+
+    embeddings_unlabeled = autoencoder.predict(sample_unlabeled)
+    for i in range(sample_unlabeled.shape[0]):
+        bs1 = BitSet(embeddings_unlabeled[i, 0])
+        bs2 = BitSet(embeddings_unlabeled[i, 1])
+        node = Node(key = [bs1, bs2], label = None)
+        graph.add_node(node)
+        for j in range(graph.v - 1):
+            sim_score = similarity_score(node, graph.node_dict[j])
+            if sim_score < 100:
+                graph.add_edge(node, graph.node_dict[j])
+    return graph, unlabeled_indices
 
 if __name__ == '__main__':
     data = genfromtxt("../data/data_Apr_01_20221.csv", delimiter=',',
@@ -92,11 +106,12 @@ if __name__ == '__main__':
                             '../models/encoder_ae.hdf5',
                             compile=False
                   )
-    graph = build_first_graph(
+    graph, unlabeled_indices =build_first_graph(
                               data = data[:, :11],
                               labels= y,
                               percentage = 0.001,
                               autoencoder = autoencoder)
+    true_labels = y[unlabeled_indices]
     de = DistExpander(graph = graph)
 
 
