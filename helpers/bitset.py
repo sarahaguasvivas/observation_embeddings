@@ -25,16 +25,20 @@ class BitSet:
 
     def update_float(self, x : np.float16 = 0.0):
         self.floating_point = np.float16(x)
-        bin_str = float_to_bin(float(x)) #bin(np.float16(x).view('H'))[2:].zfill(16)
+        bin_str = float_to_bin(float(x))
         self.binary = bitarray(bin_str, endian = 'little')
 
     def update_binary(self, x : bitarray):
         self.binary = x
-        self.floating_point = bin_to_float(x.to01()) #np.float16(int(x.to01(), 2))
+        self.floating_point = bin_to_float(x.to01())
+
+    def compute_hamming_weight(self, b):
+        # b is another object of type BitSet
+        return count_xor(self.binary, b.binary)
 
 if __name__ == '__main__':
     # declare my float as a bitset
-    bs1 = BitSet(10.0)
+    bs1 = BitSet(2345.34456)
     bs2 = BitSet(4.0)
     print(bs1.binary)
     print(bs2.binary)

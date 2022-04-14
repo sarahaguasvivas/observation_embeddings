@@ -16,7 +16,7 @@ from keras import mixed_precision
 from typing import List, Tuple
 # mixed_precision.set_global_policy('mixed_float16')
 from sklearn.cluster import KMeans
-from nptyping import NDArray, Float
+from nptyping import NDArray
 
 NUM_SAMPLES = 949207
 
@@ -60,9 +60,7 @@ def similarity_score(node0 : Node, node1: Node,
     sim_score = [BitSet(0.0)]*latent_dim
     distance = 0
     for i in range(latent_dim):
-        sim_score[i].bitset_ser = node0.key[i].bitset_ser ^ node1.key[i].bitset_ser
-        sim_score[i].update()
-        distance += compute_hamming_weight(sim_score[i])
+        distance += node0.key[i].compute_hamming_weight(node1.key[i])
     return distance / (BIT_ENCODING * latent_dim)
 
 class DistExpander:
@@ -93,6 +91,7 @@ def build_first_graph(
     sample = data[np.random.choice(data.shape[0],
                                     int(data.shape[0]*percentage),
                                    replace=False)]
+
     assert autoencoder is not None
     embeddings = autoencoder.predict(sample)
     for i in range(sample.shape[0]):
@@ -102,7 +101,6 @@ def build_first_graph(
         graph.add_node(node)
         for j in range(graph.v - 1):
             sim_score = similarity_score(node, graph.node_dict[j])
-            print(sim_score)
             if sim_score < 0.75:
                 graph.add_edge(node, graph.node_dict[j])
     return graph
