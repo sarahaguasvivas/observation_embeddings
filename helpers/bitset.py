@@ -32,9 +32,10 @@ class BitSet:
         self.binary = x
         self.floating_point = bin_to_float(x.to01())
 
-    def compute_hamming_weight(self, b):
+    def compute_weighted_hamming_weight(self, b):
         # b is another object of type BitSet
-        return count_xor(self.binary, b.binary)
+        return np.linalg.norm(self.floating_point - b.floating_point, 2)
+        #return count_xor(self.binary, b.binary)
 
 if __name__ == '__main__':
     # declare my float as a bitset

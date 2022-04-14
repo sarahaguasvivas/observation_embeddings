@@ -49,12 +49,14 @@ if __name__ == '__main__':
     plt.savefig('heat_map.png', dpi = 300)
 
     de = DistExpander(graph=graph,
-                      mu_1 = 1,
-                      mu_2 = 1,
-                      mu_3 = 1,
+                      mu_1 = 1e-3,
+                      mu_2 = 1e-3,
+                      mu_3 = 1e-3,
                       partitions = 10,
-                      max_iter = 10
+                      max_iter = 100
                       )
     de.partition_graph()
     de.run()
+
+    print(de.graph.y_hat)
 

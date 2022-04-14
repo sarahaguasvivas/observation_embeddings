@@ -27,25 +27,7 @@ NUM_SAMPLES = 949207
 # as a 16-bit encoding
 BIT_ENCODING = 16
 
-SIMILARITY_SCORE_THRESHOLD = 0.4
-
-def compute_hamming_weight(x : BitSet):
-    """
-        Hamming weight of a binary number
-        This is a simulated routine to get hamming weight
-        The proper algorithm for embedded is a lot more efficient
-    :param x:
-    :return:
-    """
-    print(x.bitset_bin)
-    n = str(bin(x.bitset_ser))
-    print(len(n))
-    weight = 0
-    for i in range(len(n)):
-        if n[i] == 1:
-            weight += 1
-    return weight
-
+SIMILARITY_SCORE_THRESHOLD = 1
 
 def similarity_score(node0 : Node, node1: Node,
                      latent_dim : int = 2)->float:
@@ -61,11 +43,12 @@ def similarity_score(node0 : Node, node1: Node,
     """
     assert len(node0.key) == latent_dim
     assert len(node1.key) == latent_dim
-    sim_score = [BitSet(0.0)]*latent_dim
-    distance = 0
+    a = []
+    b = []
     for i in range(latent_dim):
-        distance += node0.key[i].compute_hamming_weight(node1.key[i])
-    return distance / (BIT_ENCODING * latent_dim)
+        a += [node0.key[i].floating_point]
+        b += [node1.key[i].floating_point]
+    return np.linalg.norm(np.array(a) - np.array(b), 2)
 
 class DistExpander:
     def __init__(self, graph : Graph,
@@ -101,7 +84,7 @@ class DistExpander:
                         # Broadcast:
                         neigh.neighbor_distrib[node_i] = self.graph.y_hat[node_idx]
                         # Receive message:
-                        node_i.m_vl += self.mu_2 * self.graph.weights[node_idx, neigh.id]
+                        node_i.m_vl += self.mu_2 / self.graph.weights[node_idx, neigh.id] # would be multiplied
 
                 for node_idx in self.chunks[i].tolist():
                     # receive mu from neighbors u with corresponding
@@ -160,7 +143,7 @@ def build_first_graph(
             graph.weights[j, i + sample_labeled.shape[0]] = sim_score
             if sim_score < SIMILARITY_SCORE_THRESHOLD:
                 graph.add_edge(node, graph.node_dict[j])
-    return graph, unlabeled_indices
+    return graph, indices
 
 if __name__ == '__main__':
     data = genfromtxt("../data/data_Apr_01_20221.csv", delimiter=',',
@@ -177,15 +160,17 @@ if __name__ == '__main__':
                             '../models/encoder_ae.hdf5',
                             compile=False
                   )
-    graph, unlabeled_indices = build_first_graph(
+    graph, indices = build_first_graph(
                               data = data[:, :11],
                               labels= y,
                               percentage = 0.001,
                               autoencoder = autoencoder)
-    true_labels = y[unlabeled_indices]
+    true_labels = y[indices]
 
     dist_e = DistExpander(graph = graph)
     dist_e.partition_graph()
+
+    print(((np.de.graph.y_hat - true_labels)**2).mean(axis = 0))
 
 
 
