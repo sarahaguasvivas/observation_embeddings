@@ -26,9 +26,11 @@ class Graph:
         self.y = np.empty((0, self.m))
         self.y_hat = np.empty((0, self.m))
         self.upd = np.empty((0, self.m))
+        self.node_dict : Dict[int, Node] = {}
 
     def add_node(self, node : Node):
         node.id = 'n_' + str(self.v)
+        self.node_dict[self.v] = node
         self.edge_dict[node] = []
 
         # making node declaration mandatory

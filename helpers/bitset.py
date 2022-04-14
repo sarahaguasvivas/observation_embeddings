@@ -15,12 +15,13 @@ class BitSet:
         # this is the serialized bitset as a string
         self.bitset_ser = bin(np.float16(number).view('H'))[2:]\
                             .zfill(16)
-
-        # this is the bitset as a byte array
-        self.bitarray = ' '.join(map(bin,bytearray(self.bitset_ser,'utf8')))
+        self.bitset_ser = int(self.bitset_ser)
+        ## this is the bitset as a byte array
+        #self.bitarray = []
+        #for i in range(16):
+        #    self.bitarray += int(self.bitset_ser[i])
 
 if __name__ == '__main__':
     # declare my float as a bitset
     o = BitSet(21.5)
     print(o.bitset_ser)
-    print(o.bitarray)

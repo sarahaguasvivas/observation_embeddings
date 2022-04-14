@@ -20,6 +20,22 @@ from nptyping import NDArray, Float
 
 NUM_SAMPLES = 949207
 
+def similarity_score(node0 : Node, node1: Node,
+                     latent_dim : int = 2)->float:
+    """
+        Because we're working on bit-land, we use the edit
+        distance between the bitvecs from the two embeddings
+    :param node0:
+    :param node1:
+    :return:
+    """
+    assert len(node0.key) == latent_dim
+    assert len(node1.key) == latent_dim
+    sim_score : float = 0.0
+    for i in range(latent_dim):
+        sim_score += node0.key[i].bitset_ser ^ node1.key[i].bitset_ser
+    return sim_score / (2*2**16)
+
 class DistExpander:
     def __init__(self, graph : Graph,
                     mu_1 : float = 0.1,
@@ -53,8 +69,13 @@ def build_first_graph(
     for i in range(sample.shape[0]):
         bs1 = BitSet(embeddings[i, 0])
         bs2 = BitSet(embeddings[i, 1])
-        node = Node(key = [bs1, bs2], label = labels[i, :])
+        node = Node(key=[bs1, bs2], label=labels[i, :])
         graph.add_node(node)
+        for j in range(graph.v - 1):
+            sim_score = similarity_score(node, graph.node_dict[j])
+            print(sim_score)
+
+
     return graph
 
 if __name__ == '__main__':
@@ -75,7 +96,7 @@ if __name__ == '__main__':
     graph = build_first_graph(
                               data = data[:, :11],
                               labels= y,
-                              percentage = 0.01,
+                              percentage = 0.001,
                               autoencoder = autoencoder)
     de = DistExpander(graph = graph)
 
