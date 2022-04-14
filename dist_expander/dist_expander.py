@@ -20,21 +20,50 @@ from nptyping import NDArray, Float
 
 NUM_SAMPLES = 949207
 
+# Number of bits in which the neural network trained the
+# embedding. In our case, we forced Tensorflow to cast this
+# as a 16-bit encoding
+BIT_ENCODING = 16
+
+def compute_hamming_weight(x : BitSet):
+    """
+        Hamming weight of a binary number
+        This is a simulated routine to get hamming weight
+        The proper algorithm for embedded is a lot more efficient
+    :param x:
+    :return:
+    """
+    print(x.bitset_bin)
+    n = str(bin(x.bitset_ser))
+    print(len(n))
+    weight = 0
+    for i in range(len(n)):
+        if n[i] == 1:
+            weight += 1
+    return weight
+
+
 def similarity_score(node0 : Node, node1: Node,
                      latent_dim : int = 2)->float:
     """
         Because we're working on bit-land, we use the edit
         distance between the bitvecs from the two embeddings
+
+        Hamming distance
+
     :param node0:
     :param node1:
     :return:
     """
     assert len(node0.key) == latent_dim
     assert len(node1.key) == latent_dim
-    sim_score : float = 0.0
+    sim_score = [BitSet(0.0)]*latent_dim
+    distance = 0
     for i in range(latent_dim):
-        sim_score += node0.key[i].bitset_ser ^ node1.key[i].bitset_ser
-    return sim_score / (2*2**16)
+        sim_score[i].bitset_ser = node0.key[i].bitset_ser ^ node1.key[i].bitset_ser
+        sim_score[i].update()
+        distance += compute_hamming_weight(sim_score[i])
+    return distance / (BIT_ENCODING * latent_dim)
 
 class DistExpander:
     def __init__(self, graph : Graph,
@@ -76,7 +105,8 @@ def build_first_graph(
         graph.add_node(node)
         for j in range(graph.v - 1):
             sim_score = similarity_score(node, graph.node_dict[j])
-            if sim_score < 100:
+            print(sim_score)
+            if sim_score < 0.75:
                 graph.add_edge(node, graph.node_dict[j])
 
     embeddings_unlabeled = autoencoder.predict(sample_unlabeled)
