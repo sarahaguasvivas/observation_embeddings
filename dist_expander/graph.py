@@ -1,7 +1,7 @@
 import numpy as np
 from numpy import genfromtxt
 from helpers.bitset import BitSet
-from typing import Dict, Set
+from typing import Dict, Set, Tuple
 from nptyping import NDArray, Float
 
 class Node:
@@ -19,7 +19,7 @@ class Graph:
         self.vu = 0
         self.n = embedding_length
         self.m = label_size
-        self.edges = None
+        self.edges : Set[Tuple[Node, Node]] = None
         self.edge_dict : Dict[Node, Set[Node]] = {}
         self.s = np.empty((0, 0)).reshape(0, 0)
         self.weights = np.empty((0, 0)).reshape(0, 0)
@@ -58,9 +58,9 @@ class Graph:
 
     def add_edge(self, node1 : Node, node2 : Node):
         if node2 not in self.edge_dict[node1]:
-            self.edge_dict[node1] += node2
+            self.edge_dict[node1] += [node2]
         if node1 not in self.edge_dict[node2]:
-            self.edge_dict[node2] += node1
+            self.edge_dict[node2] += [node1]
 
 if __name__ == '__main__':
     graph = Graph()

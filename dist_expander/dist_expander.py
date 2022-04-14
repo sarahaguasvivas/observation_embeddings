@@ -73,9 +73,8 @@ def build_first_graph(
         graph.add_node(node)
         for j in range(graph.v - 1):
             sim_score = similarity_score(node, graph.node_dict[j])
-            print(sim_score)
-
-
+            if sim_score < 100:
+                graph.add_edge(node, graph.node_dict[j])
     return graph
 
 if __name__ == '__main__':
