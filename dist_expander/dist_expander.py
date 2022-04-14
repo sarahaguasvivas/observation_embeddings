@@ -170,7 +170,7 @@ if __name__ == '__main__':
     dist_e = DistExpander(graph = graph)
     dist_e.partition_graph()
 
-    print(((np.de.graph.y_hat - true_labels)**2).mean(axis = 0))
+
 
 
 

@@ -40,7 +40,7 @@ if __name__ == '__main__':
         '../models/encoder_ae.hdf5',
         compile=False
     )
-    graph, unlabeled_indices = build_first_graph(
+    graph, indices = build_first_graph(
         data=x,
         labels=y,
         percentage=0.0001,
@@ -57,6 +57,6 @@ if __name__ == '__main__':
                       )
     de.partition_graph()
     de.run()
-
-    print(de.graph.y_hat)
+    true_labels = y[indices]
+    print(((de.graph.y_hat - true_labels) ** 2).mean(axis=0))
 
