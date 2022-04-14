@@ -31,6 +31,8 @@ def get_x_y(data: NDArray):
     return (data[:, :11], y)
 
 if __name__ == '__main__':
+    import seaborn as sns
+    sns.set_theme()
     data = genfromtxt("../data/data_Apr_01_20221.csv", delimiter=',',
                       invalid_raise=False)
     x, y = get_x_y(data)
@@ -41,8 +43,10 @@ if __name__ == '__main__':
     graph, unlabeled_indices = build_first_graph(
         data=x,
         labels=y,
-        percentage=0.001,
+        percentage=0.0001,
         autoencoder=autoencoder)
 
     de = DistExpander(graph=graph)
+    de.partition_graph()
+
 

@@ -17,6 +17,8 @@ from typing import List, Tuple
 # mixed_precision.set_global_policy('mixed_float16')
 from sklearn.cluster import KMeans
 from nptyping import NDArray
+import random
+import multiprocessing
 
 NUM_SAMPLES = 949207
 
@@ -24,6 +26,8 @@ NUM_SAMPLES = 949207
 # embedding. In our case, we forced Tensorflow to cast this
 # as a 16-bit encoding
 BIT_ENCODING = 16
+
+SIMILARITY_SCORE_THRESHOLD = 0.4
 
 def compute_hamming_weight(x : BitSet):
     """
@@ -68,39 +72,56 @@ class DistExpander:
                     mu_1 : float = 0.1,
                     mu_2 : float = 0.1,
                     mu_3 : float = 0.1,
-                    autoencoder : keras.Model = None):
+                    autoencoder : keras.Model = None,
+                    partitions : int = 10,
+                    max_iter : int = 10):
         self.graph = graph
         self.mu_1 = mu_1
         self.mu_2 = mu_2
         self.mu_3 = mu_3
         self.autoencoder = autoencoder
-
+        self.partitions = partitions
+        self.chunks = []
+        self.max_iter = max_iter
         assert graph.v > 0
+
+    def partition_graph(self):
+        list_indices = np.arange(self.graph.v)
+        random.shuffle(list_indices)
+        self.chunks = [list_indices[i::self.partitions] for i in range(self.partitions)]
+
+    def run(self):
+        for iter in range(self.max_iter):
+            for i in range(self.partitions):
+                for node_idx in range(self.chunks[i]):
+                    # broadcast previous label distribution to all neigh
+                    pass
+
+                for node_idx in range(self.chunks[i]):
+                    # receive mu from neighbors u with corresponding
+                    # message weights, process each message
+                    pass
 
 def build_first_graph(
                         data : NDArray,
                         labels : NDArray,
                         percentage : float = 0.1,
-                        autoencoder : keras.Model = None):
+                        autoencoder : keras.Model = None
+    ):
     """
         data is the original dataset 
         percentage is the percentage of this dataset that will be 
             sampled from data
     """
     graph = Graph()
-<<<<<<< HEAD
-    sample = data[np.random.choice(data.shape[0],
-                                    int(data.shape[0]*percentage),
-                                   replace=False)]
-
-=======
-    indices =np.random.choice(data.shape[0],
-                        int(data.shape[0]*(2*percentage)), replace= False)
+    indices = np.random.choice(data.shape[0],
+                        int(data.shape[0]*(2*percentage)),
+                               replace= False)
     unlabeled_indices = indices[indices.shape[0]//2:]
     sample = data[indices]
     sample_labeled = sample[:sample.shape[0]//2, :]
     sample_unlabeled = sample[sample.shape[0]//2:, :]
->>>>>>> 51a4da9aebceff7ba889babc52cecf8c2daa7e47
+    sim_score_matrix = np.zeros((len(indices), len(indices)))
     assert autoencoder is not None
     embeddings = autoencoder.predict(sample_labeled)
     for i in range(sample_labeled.shape[0]):
@@ -110,7 +131,9 @@ def build_first_graph(
         graph.add_node(node)
         for j in range(graph.v - 1):
             sim_score = similarity_score(node, graph.node_dict[j])
-            if sim_score < 0.75:
+            graph.weights[i, j] = sim_score
+            graph.weights[j, i] = sim_score
+            if sim_score < SIMILARITY_SCORE_THRESHOLD:
                 graph.add_edge(node, graph.node_dict[j])
 
     embeddings_unlabeled = autoencoder.predict(sample_unlabeled)
@@ -121,7 +144,9 @@ def build_first_graph(
         graph.add_node(node)
         for j in range(graph.v - 1):
             sim_score = similarity_score(node, graph.node_dict[j])
-            if sim_score < 100:
+            graph.weights[i + sample_labeled.shape[0], j] = sim_score
+            graph.weights[j, i + sample_labeled.shape[0]] = sim_score
+            if sim_score < SIMILARITY_SCORE_THRESHOLD:
                 graph.add_edge(node, graph.node_dict[j])
     return graph, unlabeled_indices
 
@@ -140,13 +165,18 @@ if __name__ == '__main__':
                             '../models/encoder_ae.hdf5',
                             compile=False
                   )
-    graph, unlabeled_indices =build_first_graph(
+    graph, unlabeled_indices = build_first_graph(
                               data = data[:, :11],
                               labels= y,
                               percentage = 0.001,
                               autoencoder = autoencoder)
     true_labels = y[unlabeled_indices]
-    de = DistExpander(graph = graph)
+
+    dist_e = DistExpander(graph = graph)
+    dist_e.partition_graph()
+
+
+
 
 
 

@@ -11,6 +11,7 @@ class Node:
         self.key : [BitSet, BitSet] = key
         self.value : NDArray = label
 
+# This is an undirected graph
 class Graph:
     def __init__(self, embedding_length : int = 32,
                  label_size : int = 3):
