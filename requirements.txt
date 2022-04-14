@@ -9,3 +9,5 @@ scipy
 nptyping
 scikit-learn
 typing
+bitstring
+bitarray
