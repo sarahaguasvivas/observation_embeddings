@@ -3,13 +3,16 @@ from numpy import genfromtxt
 from helpers.bitset import BitSet
 from typing import Dict, Set, Tuple, List
 from nptyping import NDArray, Float
+from sklearn.cluster import KMeans
 
 class Node:
     def __init__(self, key : [BitSet, BitSet],
-                    label : NDArray = None):
+                    label : NDArray = None,
+                   ):
         self.id = None
         self.key : [BitSet, BitSet] = key
         self.value : NDArray = label
+        self.lsh_key = None
         self.neighbor_distrib: Dict[Node, List[float]] = {}
         self.neighbors = 0
         self.m_vl = 0.0
@@ -26,7 +29,7 @@ class Graph:
         self.edges : Set[Tuple[Node, Node]] = None
         self.edge_dict : Dict[Node, Set[Node]] = {}
         self.s = np.empty((0, 0)).reshape(0, 0)
-        self.weights = np.empty((0, 0)).reshape(0, 0)
+        #self.weights = np.empty((0, 0)).reshape(0, 0)
         self.y = np.empty((0, self.m))
         self.y_hat = np.empty((0, self.m))
         self.upd = np.empty((0, self.m))
@@ -42,15 +45,15 @@ class Graph:
         self.s = np.zeros((self.v + 1, self.v + 1))
         self.s[:self.v, :self.v] = old_seed_matrix
 
-        old_weight_matrix = self.weights.copy()
-        self.weights = np.zeros((self.v + 1, self.v + 1))
-        self.weights[:self.v, :self.v] = old_weight_matrix
+        #old_weight_matrix = self.weights.copy()
+        #self.weights = np.zeros((self.v + 1, self.v + 1))
+        #self.weights[:self.v, :self.v] = old_weight_matrix
 
         self.y = np.vstack((self.y, np.array([0]*self.m)))
         self.y_hat = np.vstack((self.y_hat, np.array([None]*self.m)))
         self.upd = np.vstack((self.upd, np.array([1/self.m]*self.m)))
         if self.v == 0:
-            self.weights = np.array([0])
+            #self.weights = np.array([0])
             self.upd = np.array([1/self.m]*self.m)
         if node.value is not None:
             self.vl += 1

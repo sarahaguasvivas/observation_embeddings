@@ -40,23 +40,28 @@ if __name__ == '__main__':
         '../models/encoder_ae.hdf5',
         compile=False
     )
-    graph, indices = build_first_graph(
+    graph, indices, lsh, chunks = build_first_graph(
         data=x,
         labels=y,
-        percentage=0.0002,
-        autoencoder=autoencoder)
-    ax = sns.heatmap(graph.weights == 0)
-    plt.savefig('heat_map.png', dpi = 300)
+        percentage=0.0001,
+        autoencoder=autoencoder,
+        partitions = 10)
+    #ax = sns.heatmap(graph.weights == 0)
+    #plt.savefig('heat_map.png', dpi = 300)
 
-    de = DistExpander(graph=graph,
-                      mu_1 = 1e-1,
-                      mu_2 = 1e-5,
-                      mu_3 = 1e-3,
-                      partitions = 100,
-                      max_iter = 10
+    de = DistExpander(
+                      graph=graph,
+                      mu_1 = 1.,
+                      mu_2 = 5e-3,
+                      mu_3 = 1.,
+                      partitions = 10,
+                      max_iter = 1
                       )
-    de.partition_graph()
-    de.run()
-    true_labels = y[indices]
-    print(((de.graph.y_hat - true_labels) ** 2).mean(axis=0))
+    de.lsh = lsh
+    de.chunks = chunks
+
+    for i in range(10):
+        de.run_iter()
+        true_labels = y[indices]
+        print(np.linalg.norm(true_labels - de.graph.y_hat))
 

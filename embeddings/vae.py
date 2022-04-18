@@ -27,10 +27,10 @@ import plotly.graph_objects as go
 import pandas as pd
 from sklearn.cluster import KMeans
 
-NUM_P_SAMPLES = 100000 #949207 #900000
+NUM_P_SAMPLES = 949207 #900000
 NUM_N_SAMPLES = 0
 
-data = genfromtxt("data/data_Apr_01_20221.csv", delimiter=',',
+data = genfromtxt("../data/data_Apr_01_20221.csv", delimiter=',',
                   invalid_raise = False)
 
 def min_max_normalization(x, new_min, new_max):
@@ -116,56 +116,58 @@ class Sampling(keras.layers.Layer):
 
 
 class VAE(keras.Model):
-    def __init__(self, encoder, decoder, **kwargs):
+    def __init__(self, encoder, decoder, task, **kwargs):
         super(VAE, self).__init__(**kwargs)
         self.encoder = encoder
         self.decoder = decoder
+        self.task = task
         self.total_loss_tracker = keras.metrics.Mean(name="total_loss")
         self.reconstruction_loss_tracker = keras.metrics.Mean(
             name="reconstruction_loss"
         )
         self.kl_loss_tracker = keras.metrics.Mean(name="kl_loss")
-
+        self.task_loss = keras.metrics.Mean(name="task_loss")
     @property
     def metrics(self):
         return [
             self.total_loss_tracker,
             self.reconstruction_loss_tracker,
             self.kl_loss_tracker,
+            self.task_loss,
         ]
 
     def train_step(self, data):
+        data = data[0]
+        labels = data[1]
         with tf.GradientTape() as tape:
-            z_mean, z_log_var, z = self.encoder(data)
+            z_mean, z_log_var, z = self.encoder(data[0])
             reconstruction = self.decoder(z)
+            downstream_task = self.task(z)
             reconstruction_loss = tf.reduce_mean(
                 tf.reduce_sum(
-                    keras.losses.binary_crossentropy(data, reconstruction)
+                    keras.losses.binary_crossentropy(data[0], reconstruction)
                 )
             )
             kl_loss = -0.5 * (1 + z_log_var - tf.square(z_mean) - tf.exp(z_log_var))
             kl_loss = tf.reduce_mean(tf.reduce_sum(kl_loss, axis=1))
-            total_loss = reconstruction_loss + kl_loss
+            task_loss = tf.reduce_mean(tf.reduce_sum(keras.losses.mean_squared_error(downstream_task, labels)))
+            total_loss = reconstruction_loss + kl_loss + task_loss
         grads = tape.gradient(total_loss, self.trainable_weights)
         self.optimizer.apply_gradients(zip(grads, self.trainable_weights))
         self.total_loss_tracker.update_state(total_loss)
         self.reconstruction_loss_tracker.update_state(reconstruction_loss)
+        self.task_loss.update_state(task_loss)
         self.kl_loss_tracker.update_state(kl_loss)
         return {
             "loss": self.total_loss_tracker.result(),
             "reconstruction_loss": self.reconstruction_loss_tracker.result(),
             "kl_loss": self.kl_loss_tracker.result(),
+            "task_loss" : self.task_loss.result()
         }
 
-
 def get_simple_encoder_conv(latent_dim=3, seq_window=3):
-    encoder_inputs = keras.Input(shape=(seq_window, 11))
-    x = keras.layers.Conv1D(32, 3, activation="relu", strides=2,
-                            padding="same")(encoder_inputs)
-    x = keras.layers.Conv1D(64, 3, activation="relu", strides=2,
-                            padding="same")(x)
-    x = keras.layers.Flatten()(x)
-    x = keras.layers.Dense(16, activation="relu")(x)
+    encoder_inputs = keras.Input(shape=(11,))
+    x = keras.layers.Dense(11, activation="relu")(encoder_inputs)
     z_mean = keras.layers.Dense(latent_dim, name="z_mean")(x)
     z_log_var = keras.layers.Dense(latent_dim, name="z_log_var")(x)
     z = Sampling()([z_mean, z_log_var])
@@ -177,20 +179,19 @@ def get_simple_encoder_conv(latent_dim=3, seq_window=3):
 
 def get_simple_decoder_conv(latent_dim=3, seq_window=3):
     latent_inputs = keras.Input(shape=(latent_dim,))
-    x = keras.layers.Dense(42 * 64, activation="relu")(latent_inputs)
-    x = keras.layers.Reshape((42, 64))(x)
-    x = keras.layers.Conv1DTranspose(64, 3, activation="relu", strides=2,
-                                     padding="same")(x)
-    x = keras.layers.Conv1DTranspose(32, 3, activation="relu", strides=2,
-                                     padding="same")(x)
-    decoder_outputs = keras.layers.Conv1DTranspose(1, 3, activation="sigmoid",
-                                                   padding="same")(x)
-    decoder_outputs = keras.layers.Flatten()(decoder_outputs)
-    decoder_outputs = keras.layers.Dense(seq_window * 11, activation='sigmoid')(decoder_outputs)
-    decoder_outputs = keras.layers.Reshape((seq_window, 11))(decoder_outputs)
+    decoder_outputs = keras.layers.Dense(11, activation='sigmoid')(latent_inputs)
     decoder = keras.Model(latent_inputs, decoder_outputs, name="decoder")
     decoder.summary()
     return decoder
+
+def get_task(latent_dim=3, label_size=3):
+    latent = keras.Input(shape=(latent_dim,))
+    x = keras.layers.Reshape((-1, 1))(latent)
+    x = keras.layers.GRU(20)(x)
+    x = keras.layers.Dense(label_size)(x)
+    task = keras.Model(latent, x, name='task')
+    task.summary()
+    return task
 
 def generate_motion_sequence_embedding_vae(
         data,
@@ -204,7 +205,8 @@ def generate_motion_sequence_embedding_vae(
                                       seq_window=sequence_window)
     decoder = get_simple_decoder_conv(latent_dim=embedding_output_dim,
                                       seq_window=sequence_window)
-    model = VAE(encoder, decoder)
+    task = get_task(latent_dim = embedding_output_dim)
+    model = VAE(encoder, decoder, task)
 
     model.compile(optimizer="adam")
 
@@ -214,46 +216,45 @@ def generate_motion_sequence_embedding_vae(
         save = keras.callbacks.LambdaCallback(on_epoch_end=lambda batch,
                                                                   logs: weights.append(model
                                                                                        .layers[0].get_weights()[0]))
-        kfold = TimeSeriesSplit(n_splits=2)
+        kfold = TimeSeriesSplit(n_splits=10)
         k_fold_results = []
         for train, test in kfold.split(data, labels):
             x_train = data[train]
             y_train = labels[train]
-            training = x_train.reshape(-1, sequence_window, 11)
-            model.fit(training, epochs=10, batch_size=1000)
+            training = x_train.reshape(-1, 11)
+            model.fit((training, y_train), epochs=10, batch_size=1000)
             # model.fit(x_train, [x_train, y_train], epochs = 10, verbose = 1, batch_size = 1000,
             #            callbacks= [save], validation_data = (X[test], [X[test], y[test]]))
     else:
-        kfold = TimeSeriesSplit(n_splits=2)
+        kfold = TimeSeriesSplit(n_splits=10)
         k_fold_results = []
         for train, test in kfold.split(data, labels):
             x_train = data[train]
             y_train = labels[train]
-            training = x_train.reshape(-1, sequence_window, 11)
-            model.fit(training, epochs=10, batch_size=1000)
+            training = x_train.reshape(-1, 11)
+            model.fit((training,labels[train]), epochs=10, batch_size=1000)
             # model.fit([X_train, X_train], labels, epochs = 10, verbose = 1, batch_size = 1000)
     return (model, encoder, decoder, weights)
 
 if __name__ == '__main__':
     import pandas as pd
     SUB_SAMPLES = 40000
-    TRAINING = False
+    TRAINING = True
     NUM_CHANNELS = 11
-    sequence_window = 10
+    sequence_window = 1
 
     (X, y) = generate_positive_data_and_labels(data, sequence_window)
     if TRAINING:
         (model, encoder, decoder, weight_logs) = \
-                              generate_motion_sequence_embedding_vae(X, y, 3,
+                              generate_motion_sequence_embedding_vae(X, y, 2,
                                            sequence_window, record = False)
-        encoder.save('models/encoder_vae.hdf5', 'hdf5')
-        decoder.save('models/decoder_vae.hdf5', 'hdf5')
+        encoder.save('../models/encoder_vae.hdf5', 'hdf5')
+        decoder.save('../models/decoder_vae.hdf5', 'hdf5')
 
-    encoder = keras.models.load_model('models/encoder_vae.hdf5', compile=False,
+    encoder = keras.models.load_model('../models/encoder_vae.hdf5', compile=False,
                                       custom_objects = {'Sampling' : Sampling})
-    embedding_output = encoder.predict(X[:SUB_SAMPLES, :].reshape(-1,sequence_window,
-                                                                  NUM_CHANNELS))
-    kmeans = KMeans(n_clusters=3, random_state=0).fit(y)
+    embedding_output = encoder.predict(X[:SUB_SAMPLES, :])
+    kmeans = KMeans(n_clusters=10, random_state=0).fit(y)
     df = pd.DataFrame(data=y[:SUB_SAMPLES, :],
                       columns=['x', 'y', 'z'])
     df['partitions'] = kmeans.labels_[:SUB_SAMPLES].astype(str).reshape(-1, 1)
@@ -266,10 +267,10 @@ if __name__ == '__main__':
     #    width=700,
     #    margin=dict(r=20, l=10, b=10, t=10))
     fig.show()
+    print(len(embedding_output))
     df_embedding = pd.DataFrame(data = embedding_output[2],
-                      columns = ['dim_0', 'dim_1', 'dim_2'])
+                      columns = ['dim_0', 'dim_1'])
 
     df_embedding['partitions'] = kmeans.labels_[:SUB_SAMPLES].astype(str).reshape(-1, 1)
-    fig = px.scatter_3d(df_embedding, x = 'dim_0', y = 'dim_1',
-                        z = 'dim_2', color = 'partitions')
+    fig = px.scatter(df_embedding, x = 'dim_0', y = 'dim_1', color = 'partitions')
     fig.show()

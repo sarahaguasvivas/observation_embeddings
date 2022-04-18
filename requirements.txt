@@ -12,3 +12,4 @@ typing
 bitstring
 bitarray
 seaborn
+sparselsh

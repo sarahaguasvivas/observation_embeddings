@@ -15,19 +15,18 @@ from helpers.helpers import min_max_normalization
 from keras import mixed_precision
 from typing import List, Tuple
 # mixed_precision.set_global_policy('mixed_float16')
-from sklearn.cluster import KMeans
 from nptyping import NDArray
+from sklearn.cluster import KMeans
 import random
 import multiprocessing
 
 NUM_SAMPLES = 949207
-
 # Number of bits in which the neural network trained the
 # embedding. In our case, we forced Tensorflow to cast this
 # as a 16-bit encoding
 BIT_ENCODING = 16
 
-SIMILARITY_SCORE_THRESHOLD = 30
+SIMILARITY_SCORE_THRESHOLD = 50
 
 def similarity_score(node0 : Node, node1: Node,
                      latent_dim : int = 2)->float:
@@ -64,36 +63,33 @@ class DistExpander:
         self.mu_3 = mu_3
         self.autoencoder = autoencoder
         self.partitions = partitions
-        self.chunks = []
+        self.chunks : List[List[int]] = []
         self.max_iter = max_iter
-        assert graph.v > 0
+        self.lsh = KMeans(n_clusters= partitions, random_state = 0)
+        assert graph.v > 0, "graph cannot be empty"
 
-    def partition_graph(self):
-        list_indices = np.arange(self.graph.v)
-        random.shuffle(list_indices)
-        self.chunks = [list_indices[i::self.partitions] for i in range(self.partitions)]
+    def run_iter(self):
+        for i in range(self.partitions):
+            for node_idx in self.chunks[i]:
+                # broadcast previous label distribution to all neigh
+                node_i = self.graph.node_dict[node_idx]
+                node_i.m_vl= self.mu_1 * self.graph.s[node_idx, node_idx] + self.mu_3
+                for neigh in self.graph.edge_dict[node_i]:
+                    # Broadcast:
+                    neigh.neighbor_distrib[node_i] = self.graph.y_hat[node_idx]
+                    # Receive message:
+                    weight = similarity_score(node_i, neigh)
+                    node_i.m_vl += self.mu_2 / (weight + 1e-20)
 
-    def run(self):
-        for iter in range(self.max_iter):
-            for i in range(self.partitions):
-                for node_idx in self.chunks[i].tolist():
-                    # broadcast previous label distribution to all neigh
-                    node_i = self.graph.node_dict[node_idx]
-                    node_i.m_vl= self.mu_1 * self.graph.s[node_idx, node_idx] + self.mu_3
-                    for neigh in self.graph.edge_dict[node_i]:
-                        # Broadcast:
-                        neigh.neighbor_distrib[node_i] = self.graph.y_hat[node_idx]
-                        # Receive message:
-                        node_i.m_vl += self.mu_2 / (self.graph.weights[node_idx, neigh.id] + 1e-9)
-
-                for node_idx in self.chunks[i].tolist():
-                    # receive mu from neighbors u with corresponding
-                    # message weights, process each message
-                    node_i = self.graph.node_dict[node_idx]
+            for node_idx in self.chunks[i]:
+                # receive mu from neighbors u with corresponding
+                # message weights, process each message
+                node_i = self.graph.node_dict[node_idx]
+                if self.graph.s[node_idx, node_idx] == 0:
                     for l in range(self.graph.m):
                         self.graph.y_hat[node_idx, l] = 1./node_i.m_vl * \
                                          (self.mu_1 * self.graph.s[node_idx, node_idx] * self.graph.y[node_idx, l]) + \
-                                         self.mu_3 / self.graph.m
+                                         self.mu_3 / self.graph.y_hat[node_idx, l] #/ self.graph.m
                         for neigh in self.graph.edge_dict[node_i]:
                             self.graph.y_hat[node_idx, l] += self.mu_2 * node_i.neighbor_distrib[neigh][l]
 
@@ -101,7 +97,8 @@ def build_first_graph(
                         data : NDArray,
                         labels : NDArray,
                         percentage : float = 0.1,
-                        autoencoder : keras.Model = None
+                        autoencoder : keras.Model = None,
+                        partitions : int = 10
     ):
     """
         data is the original dataset 
@@ -109,41 +106,36 @@ def build_first_graph(
             sampled from data
     """
     graph = Graph()
+    lsh = KMeans(n_clusters = partitions, random_state = 0)
     indices = np.random.choice(data.shape[0],
                         int(data.shape[0]*(2*percentage)),
                                replace= False)
-    unlabeled_indices = indices[indices.shape[0]//2:]
     sample = data[indices]
     sample_labeled = sample[:sample.shape[0]//2, :]
     sample_unlabeled = sample[sample.shape[0]//2:, :]
-    sim_score_matrix = np.zeros((len(indices), len(indices)))
-    assert autoencoder is not None
+    assert autoencoder is not None, "no autoencoder found"
     embeddings = autoencoder.predict(sample_labeled)
     for i in range(sample_labeled.shape[0]):
         bs1 = BitSet(embeddings[i, 0])
         bs2 = BitSet(embeddings[i, 1])
         node = Node(key=[bs1, bs2], label=labels[i, :])
         graph.add_node(node)
-        for j in range(graph.v - 1):
-            sim_score = similarity_score(node, graph.node_dict[j])
-            graph.weights[i, j] = sim_score
-            graph.weights[j, i] = sim_score
-            if sim_score < SIMILARITY_SCORE_THRESHOLD:
-                graph.add_edge(node, graph.node_dict[j])
-
     embeddings_unlabeled = autoencoder.predict(sample_unlabeled)
+
     for i in range(sample_unlabeled.shape[0]):
         bs1 = BitSet(embeddings_unlabeled[i, 0])
         bs2 = BitSet(embeddings_unlabeled[i, 1])
         node = Node(key = [bs1, bs2], label = None)
         graph.add_node(node)
-        for j in range(graph.v - 1):
-            sim_score = similarity_score(node, graph.node_dict[j])
-            graph.weights[i + sample_labeled.shape[0], j] = sim_score
-            graph.weights[j, i + sample_labeled.shape[0]] = sim_score
-            if sim_score < SIMILARITY_SCORE_THRESHOLD:
-                graph.add_edge(node, graph.node_dict[j])
-    return graph, indices
+
+    lsh.fit(np.vstack((embeddings, embeddings_unlabeled)))
+    chunks = [[]]*partitions
+    for enum, lab in enumerate(lsh.labels_):
+        chunks[lab] += [enum]
+        for i in range(len(chunks[lab]) - 1):
+            graph.add_edge(graph.node_dict[enum], graph.node_dict[chunks[lab][i]])
+
+    return graph, indices, lsh, chunks
 
 if __name__ == '__main__':
     data = genfromtxt("../data/data_Apr_01_20221.csv", delimiter=',',
@@ -160,21 +152,14 @@ if __name__ == '__main__':
                             '../models/encoder_ae.hdf5',
                             compile=False
                   )
-    graph, indices = build_first_graph(
+    graph, indices, _, _ = build_first_graph(
                               data = data[:, :11],
                               labels= y,
                               percentage = 0.001,
                               autoencoder = autoencoder)
     true_labels = y[indices]
-
     dist_e = DistExpander(graph = graph)
     dist_e.partition_graph()
-
-
-
-
-
-
 
 
 
