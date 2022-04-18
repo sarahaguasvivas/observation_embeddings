@@ -42,7 +42,7 @@ if __name__ == '__main__':
     )
     graph, indices, lsh, chunks = build_first_graph(
         data=x,
-        labels=y,
+        labels=100*y,
         percentage=0.0001,
         autoencoder=autoencoder,
         partitions = 10)
@@ -51,10 +51,10 @@ if __name__ == '__main__':
 
     de = DistExpander(
                       graph=graph,
-                      mu_1 = 1.,
-                      mu_2 = 5e-3,
-                      mu_3 = 1.,
-                      partitions = 10,
+                      mu_1 = 5e-2,
+                      mu_2 = 5e-5,
+                      mu_3 = 2e-3,
+                      partitions = 3,
                       max_iter = 1
                       )
     de.lsh = lsh
@@ -63,5 +63,6 @@ if __name__ == '__main__':
     for i in range(10):
         de.run_iter()
         true_labels = y[indices]
+        print(np.mean(abs(true_labels - de.graph.y_hat), axis = 0))
         print(np.linalg.norm(true_labels - de.graph.y_hat))
 
