@@ -92,6 +92,7 @@ def generate_positive_data_and_labels(
 
     X = p_signal_sequence  # np.concatenate((p_signal_sequence, n_signal_sequence), axis = 0)
     X = min_max_normalization(X, -1, 1)
+    X = np.hstack((X, p_input_sequence))
     y = prediction_labels  # np.concatenate((p_embedding_prediction_labels,
     # n_embedding_prediction_labels), axis=0)
     r = R.from_rotvec([0, 0, np.pi / 4.])
@@ -106,16 +107,13 @@ if __name__ == '__main__':
     import plotly.express as px
     import pandas as pd
     sequence_window = 1
-    SUB_SAMPLES = 40000
+    SUB_SAMPLES = 4000 #16000
     TRAINING = False
-
+    EMBEDDING_SIZE = 3
+    EARLY_EXAGGERATION_RATE = 12.
     (X, y) = generate_positive_data_and_labels(data, sequence_window)
-    encoded = TSNE(n_components=3,
-                   learning_rate='auto',
-                   init='random').fit_transform(X[:SUB_SAMPLES, :])
 
     kmeans = KMeans(n_clusters=10, random_state=0).fit(y[:SUB_SAMPLES, :])
-
     df = pd.DataFrame(data=y[:SUB_SAMPLES, :],
                       columns=['x', 'y', 'z'])
 
@@ -123,9 +121,36 @@ if __name__ == '__main__':
     fig = px.scatter_3d(df, x='x', y='y', z='z', color='partitions')
     fig.show()
 
-    df_embedding = pd.DataFrame(data=encoded[:, :2],
-                                columns=['dim_0', 'dim_1'])
+    encoded = TSNE(n_components = EMBEDDING_SIZE,
+                   early_exaggeration = EARLY_EXAGGERATION_RATE,
+                   n_iter = 10000,
+                   perplexity = SUB_SAMPLES / 100,
+                   learning_rate = 500, #max(SUB_SAMPLES / EARLY_EXAGGERATION_RATE, 50),
+                   init='pca',
+                   angle = 0.3,
+                   random_state = 2,
+                   verbose = 1,
+                   n_jobs = 4).fit_transform(X[:SUB_SAMPLES, :].astype(np.float16))
+
+    to_save = np.hstack((X[:SUB_SAMPLES, :], encoded))
+    to_save = np.hstack((to_save, y[:SUB_SAMPLES, :]))
+    print(to_save.shape)
+    np.savetxt("signal_tsne.csv", to_save, delimiter = ',')
+
+    columns = ['dim_' + str(i) for i in range(EMBEDDING_SIZE)]
+    df_embedding = pd.DataFrame(data=encoded,
+                                columns=columns)
 
     df_embedding['partitions'] = kmeans.labels_[:SUB_SAMPLES].astype(str).reshape(-1, 1)
-    fig = px.scatter(df_embedding, x='dim_0', y='dim_1', color='partitions')
+    #fig = px.scatter_3d(df_embedding, x='dim_0', y='dim_1', z= 'dim_2', color='partitions')
+    #fig.show()
+
+    for i in range(EMBEDDING_SIZE):
+        for j in range(i + 1, EMBEDDING_SIZE):
+            dim0 = 'dim_' + str(i)
+            dim1 = 'dim_' + str(j)
+            fig = px.scatter(df_embedding, x = dim0, y = dim1, color = 'partitions')
+            fig.show()
+
+    fig = px.scatter_3d(df_embedding, x = 'dim_0', y = 'dim_1', z = 'dim_2', color = 'partitions')
     fig.show()

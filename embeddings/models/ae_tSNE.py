@@ -43,7 +43,7 @@ class Autoencoder(keras.Model):
         return [decoded]
 
 def get_simple_encoder(latent_dim=3, seq_window=3):
-    encoder_inputs = keras.Input(shape=(11 * seq_window + 2,))
+    encoder_inputs = keras.Input(shape=(11 * seq_window,))
     encoder_inputs = keras.layers.Reshape((-1, 1))(encoder_inputs)
     x = keras.layers.GRU(11,
                            kernel_initializer='random_normal')(encoder_inputs)
@@ -56,7 +56,7 @@ def get_simple_encoder(latent_dim=3, seq_window=3):
 def get_simple_decoder(latent_dim=3, seq_window=3):
     latent_inputs = keras.Input(shape=(latent_dim,))
     latent_inputs = keras.layers.Reshape((-1, 1))(latent_inputs)
-    x = keras.layers.GRU(13)(latent_inputs)
+    x = keras.layers.GRU(11)(latent_inputs)
     decoder = keras.Model(latent_inputs, x, name='decoder')
     decoder.summary()
     return decoder
@@ -134,7 +134,6 @@ def generate_positive_data_and_labels(
 
     X = p_signal_sequence  # np.concatenate((p_signal_sequence, n_signal_sequence), axis = 0)
     X = min_max_normalization(X, -1, 1)
-    X = np.hstack((X, p_input_sequence))
     y = prediction_labels  # np.concatenate((p_embedding_prediction_labels,
     # n_embedding_prediction_labels), axis=0)
     r = R.from_rotvec([0, 0, np.pi / 4.])
@@ -159,7 +158,7 @@ def generate_motion_sequence_embedding_ae(
     model = Autoencoder(embedding_output_dim, encoder, decoder, task)
 
     #model.compile(optimizer="adam", loss=['cosine_similarity', 'mse'])
-    model.compile(optimizer = 'adam', loss = ['cosine_similarity'])
+    model.compile(optimizer = 'adam', loss = ['kl_divergence'])
     weights = None
     if record:
         weights = []

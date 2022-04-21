@@ -43,7 +43,7 @@ if __name__ == '__main__':
     graph, indices, lsh, chunks = build_first_graph(
         data=x,
         labels=100*y,
-        percentage=0.0001,
+        percentage=0.00001,
         autoencoder=autoencoder,
         partitions = 10)
     #ax = sns.heatmap(graph.weights == 0)
