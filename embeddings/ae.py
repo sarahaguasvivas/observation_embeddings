@@ -39,8 +39,8 @@ class Autoencoder(keras.Model):
         encoded = self.encoder(x)
         decoded = self.decoder(encoded)
         task_done = self.task(encoded)
-        #return [decoded, task_done]
-        return [decoded]
+        return [decoded, task_done]
+        #return [decoded]
 
 def get_simple_encoder(latent_dim=3, seq_window=3):
     encoder_inputs = keras.Input(shape=(11 * seq_window + 2,))
@@ -158,29 +158,33 @@ def generate_motion_sequence_embedding_ae(
                     label_size=labels.shape[1])
     model = Autoencoder(embedding_output_dim, encoder, decoder, task)
 
-    #model.compile(optimizer="adam", loss=['cosine_similarity', 'mse'])
-    model.compile(optimizer = 'adam', loss = ['cosine_similarity'])
+    model.compile(optimizer="adam", loss=['kl_divergence', 'mse'])
+    #model.compile(optimizer = 'adam', loss = ['kl_divergence'])
     weights = None
     if record:
         weights = []
         save = keras.callbacks.LambdaCallback(on_epoch_end=lambda batch,
                                                                   logs: weights.append(model
                                                                                        .layers[0].get_weights()[0]))
-        kfold = TimeSeriesSplit(n_splits=2)
+        kfold = TimeSeriesSplit(n_splits=10)
         k_fold_results = []
         for train, test in kfold.split(data, labels):
             x_train = data[train]
             y_train = labels[train]
-            model.fit(x_train, [x_train], epochs=10, verbose=1, batch_size=100,
-                      callbacks=[save], validation_data=(X[test], [X[test]]))
+            #model.fit(x_train, [x_train], epochs=10, verbose=1, batch_size=100,
+            #          callbacks=[save], validation_data=(X[test], [X[test]]))
+            model.fit(x_train, [x_train, y_train], epochs = 10, verbose = 1, batch_size = 100,
+                      callbacks = [save], validation_data = (X[test], [X[test], labels[test]]))
     else:
         kfold = TimeSeriesSplit(n_splits=5)
         k_fold_results = []
         for train, test in kfold.split(data, labels):
-            X_train = data[train]
+            x_train = data[train]
             y_train = labels[train]
-            model.fit([X_train, X_train], labels, epochs=10, verbose=1, batch_size=1000)
-    return (model, encoder, decoder, weights)
+            #model.fit([X_train, X_train], labels, epochs=10, verbose=1, batch_size=1000)
+            model.fit(x_train, [x_train, y_train], epochs=10, verbose=1, batch_size=100,
+                      validation_data=(X[test], [X[test], labels[test]]))
+    return (model, encoder, decoder, task, weights)
 
 def normalize_coordinates(x):
     return x / (np.max(x, axis = 0) - np.min(x, axis = 0))
@@ -205,17 +209,17 @@ if __name__ == '__main__':
     import plotly.express as px
     import pandas as pd
     sequence_window = 1
-    SUB_SAMPLES = 40000
-    TRAINING = True
+    SUB_SAMPLES = NUM_P_SAMPLES #40000
+    TRAINING = False
 
     (X, y) = generate_positive_data_and_labels(data, sequence_window)
     if TRAINING:
-        (model, encoder, decoder, weight_logs) = \
-            generate_motion_sequence_embedding_ae(X, y, 3, sequence_window)
-        encoder.save('models/encoder_ae.hdf5', 'hdf5')
-        decoder.save('models/decoder_ae.hdf5', 'hdf5')
-
-    encoder = keras.models.load_model('models/encoder_ae.hdf5', compile=False)
+        (model, encoder, decoder, task , weight_logs) = \
+            generate_motion_sequence_embedding_ae(X, y, 2, sequence_window)
+        encoder.save('models/encoder_ae_2.hdf5', 'hdf5')
+        decoder.save('models/decoder_ae_2.hdf5', 'hdf5')
+        task.save('models/task_ae_2.hdf5', 'hdf5')
+    encoder = keras.models.load_model('models/encoder_ae_2.hdf5', compile=False)
 
     kmeans = KMeans(n_clusters = 10, random_state = 0).fit(y[:SUB_SAMPLES, :])
 
@@ -224,21 +228,23 @@ if __name__ == '__main__':
 
     df['partitions'] = kmeans.labels_[:SUB_SAMPLES].astype(str).reshape(-1, 1)
     fig = px.scatter_3d(df, x='x', y='y', z='z', color='partitions')
-    fig.show()
+    fig.write_image("task_space.svg", format = 'svg')
 
-    column_names = ['dim_' + str(i) for i in range(3)]
+    column_names = ['dim_' + str(i) for i in range(2)]
 
     embedding_output = encoder.predict(X[:SUB_SAMPLES, :])
     df_embedding = pd.DataFrame(data=embedding_output,
                                 columns= column_names)
-    for i in range(3):
-        for j in range(i + 1, 3):
+    for i in range(2):
+        for j in range(i + 1, 2):
             dim1 = 'dim_' + str(i)
             dim2 = 'dim_' + str(j)
             df_embedding['partitions'] = kmeans.labels_[:SUB_SAMPLES].astype(str).reshape(-1, 1)
             fig = px.scatter(df_embedding, x=dim1, y=dim2, color='partitions')
-            fig.show()
+            fig.write_image("ae.svg", format = 'svg')
 
+    #fig = px.scatter_3d(df_embedding, x = 'dim_0', y = 'dim_1', z = 'dim_2', color = 'partitions')
+    #fig.show()
     #normalized_embedding = normalize_coordinates(embedding_output[:SUB_SAMPLES, :])
     #normalized_task_space = normalize_coordinates(y[:SUB_SAMPLES, :])
     #print("trained:", pairwise_distance_ratio(normalized_embedding, normalized_task_space))
