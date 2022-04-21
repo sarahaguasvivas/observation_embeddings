@@ -28,7 +28,8 @@ def get_x_y(data: NDArray):
     r = R.from_rotvec([0, 0, np.pi / 4.])
     y = r.apply(output_data)
     y = min_max_normalization(y, -1, 1)
-    return (data[:, :11], y)
+    x = np.hstack((data[:, :11], data[:, 14:]))
+    return (x, y)
 
 if __name__ == '__main__':
     import seaborn as sns
@@ -37,12 +38,12 @@ if __name__ == '__main__':
                       invalid_raise=False)
     x, y = get_x_y(data)
     autoencoder = keras.models.load_model(
-        '../models/encoder_ae.hdf5',
+        '../embeddings/models/encoder_ae_2.hdf5',
         compile=False
     )
     graph, indices, lsh, chunks = build_first_graph(
         data=x,
-        labels=100*y,
+        labels=y,
         percentage=0.00001,
         autoencoder=autoencoder,
         partitions = 10)
@@ -54,13 +55,13 @@ if __name__ == '__main__':
                       mu_1 = 5e-2,
                       mu_2 = 5e-5,
                       mu_3 = 2e-3,
-                      partitions = 3,
+                      partitions = 10,
                       max_iter = 1
                       )
     de.lsh = lsh
     de.chunks = chunks
 
-    for i in range(10):
+    for i in range(100):
         de.run_iter()
         true_labels = y[indices]
         print(np.mean(abs(true_labels - de.graph.y_hat), axis = 0))

@@ -149,11 +149,11 @@ if __name__ == '__main__':
     y = r.apply(output_data)
     y = min_max_normalization(y, -1, 1)
     autoencoder = keras.models.load_model(
-                            '../models/encoder_ae.hdf5',
+                            '../models/encoder_ae_2.hdf5',
                             compile=False
                   )
     graph, indices, _, _ = build_first_graph(
-                              data = data[:, :11],
+                              data = np.hstack((data[:, :11], data[:, 14:])),
                               labels= y,
                               percentage = 0.001,
                               autoencoder = autoencoder)
