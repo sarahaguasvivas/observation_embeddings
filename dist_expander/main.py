@@ -55,14 +55,14 @@ if __name__ == '__main__':
         percentage=0.00005,
         autoencoder=autoencoder,
         task = task_nn,
-        partitions = 3)
+        partitions = 4)
 
     de = DistExpander(
                       graph=graph,
                       mu_1 = 5.,
-                      mu_2 = 1e-5,
-                      mu_3 = 1e-5,
-                      partitions = 3,
+                      mu_2 = 1e-4,
+                      mu_3 = 1.,
+                      partitions = 4,
                       task_nn = task_nn,
                       max_iter = 1,
                       mean_point = np.mean(y, axis = 0)
@@ -79,8 +79,8 @@ if __name__ == '__main__':
     df_ytrue = pd.DataFrame(true_labels, columns = ['x', 'y', 'z'])
 
     fig = go.Figure()
-    fig.add_trace(go.Scatter3d(x=true_labels[:, 0], y=true_labels[:, 1], z= true_labels[:, 2]), name = 'true')
-    fig.add_trace(go.Scatter3d(x = de.graph.y_hat[:, 0], y = de.graph.y_hat[:, 1], z = de.graph.y_hat[:, 2]), name = 'assigned')
+    fig.add_trace(go.Scatter3d(x=true_labels[:, 0], y=true_labels[:, 1], z= true_labels[:, 2], name = 'true'))
+    fig.add_trace(go.Scatter3d(x = de.graph.y_hat[:, 0], y = de.graph.y_hat[:, 1], z = de.graph.y_hat[:, 2], name = 'assigned'))
     fig.show()
     #fig.write_image("dist_expander_learned.svg", format='svg')
 
