@@ -42,12 +42,9 @@ def similarity_score(node0 : Node, node1: Node,
     """
     assert len(node0.key) == latent_dim
     assert len(node1.key) == latent_dim
-    a = []
-    b = []
-    for i in range(latent_dim):
-        a += [node0.key[i].floating_point]
-        b += [node1.key[i].floating_point]
-    return np.linalg.norm(np.array(a) - np.array(b), 2)
+    a = node0.get_embedding()
+    b = node1.get_embedding()
+    return np.dot(a, b)
 
 class DistExpander:
     def __init__(self, graph : Graph,
@@ -57,6 +54,7 @@ class DistExpander:
                     autoencoder : keras.Model = None,
                     task_nn : keras.Model = None,
                     partitions : int = 10,
+                    mean_point = None,
                     max_iter : int = 10):
         self.graph = graph
         self.mu_1 = mu_1
@@ -65,6 +63,7 @@ class DistExpander:
         self.autoencoder = autoencoder
         self.task = task_nn
         self.partitions = partitions
+        self.mean_point = mean_point
         self.chunks : List[List[int]] = []
         self.max_iter = max_iter
         self.lsh = KMeans(n_clusters= partitions, random_state = 0)
@@ -72,28 +71,30 @@ class DistExpander:
 
     def run_iter(self, partition):
         for node_idx in self.chunks[partition]:
-            # broadcast previous label distribution to all neigh
-            node_i = self.graph.node_dict[node_idx]
-            node_i.m_vl= self.mu_1 * self.graph.s[node_idx, node_idx] + self.mu_3
-            for neigh in self.graph.edge_dict[node_i]:
-                # Broadcast:
-                neigh.neighbor_distrib[node_i] = self.graph.y_hat[node_idx]
-                # Receive message:
-                weight = similarity_score(node_i, neigh)
-                node_i.m_vl += self.mu_2 / (weight + 1e-20)
+            self.graph.y_hat[node_idx, :] = self.graph.y[node_idx, :]
+        #    # broadcast previous label distribution to all neigh
+        #    node_i = self.graph.node_dict[node_idx]
+        #    node_i.m_vl = self.mu_1 * self.graph.s[node_idx, node_idx] + self.mu_3
+        #    for neigh in self.graph.edge_dict[node_i]:
+        #        if node_i.id != neigh.id:
+        #            neigh.neighbor_distrib[node_i] = self.graph.y_hat[node_idx]
+        #            weight = similarity_score(node_i, neigh)
+        #            node_i.m_vl += self.mu_2 * weight
 
-        for node_idx in self.chunks[partition]:
-            # receive mu from neighbors u with corresponding
-            # message weights, process each message
-            node_i = self.graph.node_dict[node_idx]
-            if self.graph.s[node_idx, node_idx] == 0:
-                for l in range(self.graph.m):
-                    self.graph.y_hat[node_idx, l] = self.mu_1 * self.graph.s[node_idx, node_idx] * \
-                                                        self.graph.y[node_idx, l] + \
-                                                        self.mu_3 * 1. / self.graph.m
-                    for neigh in self.graph.edge_dict[node_i]:
-                        self.graph.y_hat[node_idx, l] += self.mu_2 * node_i.neighbor_distrib[neigh][l]
-            self.graph.y_hat[node_idx, :] /= (node_i.m_vl * self.graph.m)
+        #for node_idx in self.chunks[partition]:
+        #    # receive mu from neighbors u with corresponding
+        #    # message weights, process each message
+        #    node_i = self.graph.node_dict[node_idx]
+        #    self.graph.y_hat[node_idx, :] = self.mu_1 * self.graph.s[node_idx, node_idx] * \
+        #                                        self.graph.y[node_idx, :]
+        #    for l in range(self.graph.m):
+        #        for neigh, dist in node_i.neighbor_distrib.items():
+        #            if neigh.id != node_i.id:
+        #                dist = node_i.neighbor_distrib[neigh]
+        #                weight = similarity_score(node_i, neigh)
+        #                self.graph.y_hat[node_idx, l] += self.mu_2 * dist[l] * weight
+        #    self.graph.y_hat[node_idx, :] /= node_i.m_vl
+
 def build_first_graph(
                         data : NDArray,
                         labels : NDArray,
@@ -113,6 +114,7 @@ def build_first_graph(
                         int(data.shape[0]*(2*percentage)),
                                replace= False)
     sample = data[indices]
+    sampled_labels = labels[indices]
     sample_labeled = sample[:sample.shape[0]//2, :]
     sample_unlabeled = sample[sample.shape[0]//2:, :]
     assert autoencoder is not None, "no autoencoder found"
@@ -122,7 +124,8 @@ def build_first_graph(
     for i in range(sample_labeled.shape[0]):
         bs1 = BitSet(embeddings[i, 0])
         bs2 = BitSet(embeddings[i, 1])
-        node = Node(key=[bs1, bs2], label=labels[i, :])
+        # I was sending out the wrong sample
+        node = Node(key=[bs1, bs2], label=sampled_labels[i, :])
         graph.add_node(node)
     embeddings_unlabeled = autoencoder.predict(sample_unlabeled)
 
@@ -131,6 +134,7 @@ def build_first_graph(
         bs2 = BitSet(embeddings_unlabeled[i, 1])
         node = Node(key = [bs1, bs2], label = None)
         graph.add_node(node)
+        graph.y_hat[node.id, :] = np.mean(labels, axis = 0)
 
     lsh.fit(np.vstack((embeddings, embeddings_unlabeled)))
     chunks = [[]]*partitions

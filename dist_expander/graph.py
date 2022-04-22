@@ -18,7 +18,7 @@ class Node:
         self.m_vl = 0.0
 
     def get_embedding(self):
-        return [self.key[0].floating_point.asdtype(np.float64), self.key[1].floating_point.asdtype(np.float64)]
+        return np.array([self.key[0].floating_point, self.key[1].floating_point])
 
 # This is an undirected graph
 class Graph:
@@ -49,15 +49,10 @@ class Graph:
         self.s = np.zeros((self.v + 1, self.v + 1))
         self.s[:self.v, :self.v] = old_seed_matrix
 
-        #old_weight_matrix = self.weights.copy()
-        #self.weights = np.zeros((self.v + 1, self.v + 1))
-        #self.weights[:self.v, :self.v] = old_weight_matrix
-
         self.y = np.vstack((self.y, np.array([0]*self.m)))
         self.y_hat = np.vstack((self.y_hat, np.array([None]*self.m)))
         self.upd = np.vstack((self.upd, np.array([1/self.m]*self.m)))
         if self.v == 0:
-            #self.weights = np.array([0])
             self.upd = np.array([1/self.m]*self.m)
         if node.value is not None:
             self.vl += 1
@@ -68,7 +63,7 @@ class Graph:
             self.vu += 1
             self.s[-1, -1] = 0.
             self.y[-1, :] = 0.
-            self.y_hat[-1, :] = 1. / self.m
+            self.y_hat[-1, :] = 0.
         self.v += 1
 
     def add_edge(self, node1 : Node, node2 : Node):

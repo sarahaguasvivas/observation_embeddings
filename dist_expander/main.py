@@ -33,6 +33,8 @@ def get_x_y(data: NDArray):
     return (x, y)
 
 if __name__ == '__main__':
+    import plotly.express as px
+    import pandas as pd
     import seaborn as sns
     sns.set_theme()
     data = genfromtxt("../data/data_Apr_01_20221.csv", delimiter=',',
@@ -52,28 +54,34 @@ if __name__ == '__main__':
         percentage=0.0001,
         autoencoder=autoencoder,
         task = task_nn,
-        partitions = 10)
-    #ax = sns.heatmap(graph.weights == 0)
-    #plt.savefig('heat_map.png', dpi = 300)
+        partitions = 20)
 
-    #12, 1, 1e-2, 12.3
     de = DistExpander(
                       graph=graph,
-                      mu_1 = 5,
-                      mu_2 = 1e-5,
-                      mu_3 = 1e-7,
-                      partitions = 10,
+                      mu_1 = 1.,
+                      mu_2 = 1.,
+                      mu_3 = 1.,
+                      partitions = 20,
                       task_nn = task_nn,
-                      max_iter = 1
+                      max_iter = 1,
+                      mean_point = np.mean(y, axis = 0)
                       )
     de.lsh = lsh
     de.chunks = chunks
-
-    for i in range(100):
+    for i in range(10):
         for p in range(de.partitions):
             de.run_iter(p)
-            true_labels = y[indices]
-            #print(true_labels.shape, de.graph.y_hat.shape)
-            #print(np.mean(abs(true_labels - de.graph.y_hat), axis = 0))
-            print(np.linalg.norm(true_labels - de.graph.y_hat))
+        true_labels = y[indices]
+        print(np.mean(abs(true_labels - de.graph.y_hat), axis = 0))
+        print(np.linalg.norm(true_labels - de.graph.y_hat))
+
+    df_yhat = pd.DataFrame(de.graph.y_hat, columns = ['x', 'y', 'z'])
+    df_ytrue = pd.DataFrame(true_labels, columns = ['x', 'y', 'z'])
+
+    fig = px.scatter_3d(df_yhat, x='x', y='y', z= 'z')
+    fig.show()
+
+    fig = px.scatter_3d(df_ytrue, x = 'x', y = 'y', z = 'z')
+    fig.show()
+    #fig.write_image("dist_expander_learned.svg", format='svg')
 
