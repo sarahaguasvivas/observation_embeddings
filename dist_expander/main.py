@@ -34,6 +34,7 @@ def get_x_y(data: NDArray):
 
 if __name__ == '__main__':
     import plotly.express as px
+    import plotly.graph_objects as go
     import pandas as pd
     import seaborn as sns
     sns.set_theme()
@@ -51,17 +52,17 @@ if __name__ == '__main__':
     graph, indices, lsh, chunks = build_first_graph(
         data=x,
         labels=y,
-        percentage=0.0001,
+        percentage=0.00005,
         autoencoder=autoencoder,
         task = task_nn,
-        partitions = 20)
+        partitions = 3)
 
     de = DistExpander(
                       graph=graph,
-                      mu_1 = 1.,
-                      mu_2 = 1.,
-                      mu_3 = 1.,
-                      partitions = 20,
+                      mu_1 = 5.,
+                      mu_2 = 1e-5,
+                      mu_3 = 1e-5,
+                      partitions = 3,
                       task_nn = task_nn,
                       max_iter = 1,
                       mean_point = np.mean(y, axis = 0)
@@ -72,16 +73,14 @@ if __name__ == '__main__':
         for p in range(de.partitions):
             de.run_iter(p)
         true_labels = y[indices]
-        print(np.mean(abs(true_labels - de.graph.y_hat), axis = 0))
         print(np.linalg.norm(true_labels - de.graph.y_hat))
 
     df_yhat = pd.DataFrame(de.graph.y_hat, columns = ['x', 'y', 'z'])
     df_ytrue = pd.DataFrame(true_labels, columns = ['x', 'y', 'z'])
 
-    fig = px.scatter_3d(df_yhat, x='x', y='y', z= 'z')
-    fig.show()
-
-    fig = px.scatter_3d(df_ytrue, x = 'x', y = 'y', z = 'z')
+    fig = go.Figure()
+    fig.add_trace(go.Scatter3d(x=true_labels[:, 0], y=true_labels[:, 1], z= true_labels[:, 2]), name = 'true')
+    fig.add_trace(go.Scatter3d(x = de.graph.y_hat[:, 0], y = de.graph.y_hat[:, 1], z = de.graph.y_hat[:, 2]), name = 'assigned')
     fig.show()
     #fig.write_image("dist_expander_learned.svg", format='svg')
 

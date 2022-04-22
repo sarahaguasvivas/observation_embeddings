@@ -44,7 +44,10 @@ def similarity_score(node0 : Node, node1: Node,
     assert len(node1.key) == latent_dim
     a = node0.get_embedding()
     b = node1.get_embedding()
-    return np.dot(a, b)
+    weight = 1. / np.linalg.norm(a - b)
+    if np.isinf(weight) or np.isnan(weight):
+        return 10
+    return weight
 
 class DistExpander:
     def __init__(self, graph : Graph,
@@ -71,29 +74,25 @@ class DistExpander:
 
     def run_iter(self, partition):
         for node_idx in self.chunks[partition]:
-            self.graph.y_hat[node_idx, :] = self.graph.y[node_idx, :]
-        #    # broadcast previous label distribution to all neigh
-        #    node_i = self.graph.node_dict[node_idx]
-        #    node_i.m_vl = self.mu_1 * self.graph.s[node_idx, node_idx] + self.mu_3
-        #    for neigh in self.graph.edge_dict[node_i]:
-        #        if node_i.id != neigh.id:
-        #            neigh.neighbor_distrib[node_i] = self.graph.y_hat[node_idx]
-        #            weight = similarity_score(node_i, neigh)
-        #            node_i.m_vl += self.mu_2 * weight
+            # broadcast previous label distribution to all neigh
+            node_i = self.graph.node_dict[node_idx]
+            node_i.m_vl = self.mu_1 * self.graph.s[node_idx, node_idx] + self.mu_3
+            for neigh in self.graph.edge_dict[node_i]:
+                neigh.neighbor_distrib[node_i] = self.graph.y_hat[node_idx, :]
+                weight = similarity_score(node_i, neigh)
+                node_i.m_vl += self.mu_2 * weight
 
-        #for node_idx in self.chunks[partition]:
-        #    # receive mu from neighbors u with corresponding
-        #    # message weights, process each message
-        #    node_i = self.graph.node_dict[node_idx]
-        #    self.graph.y_hat[node_idx, :] = self.mu_1 * self.graph.s[node_idx, node_idx] * \
-        #                                        self.graph.y[node_idx, :]
-        #    for l in range(self.graph.m):
-        #        for neigh, dist in node_i.neighbor_distrib.items():
-        #            if neigh.id != node_i.id:
-        #                dist = node_i.neighbor_distrib[neigh]
-        #                weight = similarity_score(node_i, neigh)
-        #                self.graph.y_hat[node_idx, l] += self.mu_2 * dist[l] * weight
-        #    self.graph.y_hat[node_idx, :] /= node_i.m_vl
+        for node_idx in self.chunks[partition]:
+            # receive mu from neighbors u with corresponding
+            # message weights, process each message
+            node_i = self.graph.node_dict[node_idx]
+            self.graph.y_hat[node_idx, :] = self.mu_1 * self.graph.s[node_idx, node_idx] * \
+                                                self.graph.y[node_idx, :] + self.mu_3 * self.mean_point
+            for neigh, dist in node_i.neighbor_distrib.items():
+                dist = node_i.neighbor_distrib[neigh]
+                weight = similarity_score(node_i, neigh)
+                self.graph.y_hat[node_idx, :] += self.mu_2 * dist * weight
+            self.graph.y_hat[node_idx, :] /= node_i.m_vl
 
 def build_first_graph(
                         data : NDArray,
