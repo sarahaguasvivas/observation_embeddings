@@ -55,6 +55,7 @@ class DistExpander:
                     mu_2 : float = 0.1,
                     mu_3 : float = 0.1,
                     autoencoder : keras.Model = None,
+                    task_nn : keras.Model = None,
                     partitions : int = 10,
                     max_iter : int = 10):
         self.graph = graph
@@ -62,42 +63,43 @@ class DistExpander:
         self.mu_2 = mu_2
         self.mu_3 = mu_3
         self.autoencoder = autoencoder
+        self.task = task_nn
         self.partitions = partitions
         self.chunks : List[List[int]] = []
         self.max_iter = max_iter
         self.lsh = KMeans(n_clusters= partitions, random_state = 0)
         assert graph.v > 0, "graph cannot be empty"
 
-    def run_iter(self):
-        for i in range(self.partitions):
-            for node_idx in self.chunks[i]:
-                # broadcast previous label distribution to all neigh
-                node_i = self.graph.node_dict[node_idx]
-                node_i.m_vl= self.mu_1 * self.graph.s[node_idx, node_idx] + self.mu_3
-                for neigh in self.graph.edge_dict[node_i]:
-                    # Broadcast:
-                    neigh.neighbor_distrib[node_i] = self.graph.y_hat[node_idx]
-                    # Receive message:
-                    weight = similarity_score(node_i, neigh)
-                    node_i.m_vl += self.mu_2 / (weight + 1e-20)
+    def run_iter(self, partition):
+        for node_idx in self.chunks[partition]:
+            # broadcast previous label distribution to all neigh
+            node_i = self.graph.node_dict[node_idx]
+            node_i.m_vl= self.mu_1 * self.graph.s[node_idx, node_idx] + self.mu_3
+            for neigh in self.graph.edge_dict[node_i]:
+                # Broadcast:
+                neigh.neighbor_distrib[node_i] = self.graph.y_hat[node_idx]
+                # Receive message:
+                weight = similarity_score(node_i, neigh)
+                node_i.m_vl += self.mu_2 / (weight + 1e-20)
 
-            for node_idx in self.chunks[i]:
-                # receive mu from neighbors u with corresponding
-                # message weights, process each message
-                node_i = self.graph.node_dict[node_idx]
-                if self.graph.s[node_idx, node_idx] == 0:
-                    for l in range(self.graph.m):
-                        self.graph.y_hat[node_idx, l] = 1./node_i.m_vl * \
-                                         (self.mu_1 * self.graph.s[node_idx, node_idx] * self.graph.y[node_idx, l]) + \
-                                         self.mu_3 / self.graph.y_hat[node_idx, l] #/ self.graph.m
-                        for neigh in self.graph.edge_dict[node_i]:
-                            self.graph.y_hat[node_idx, l] += self.mu_2 * node_i.neighbor_distrib[neigh][l]
-
+        for node_idx in self.chunks[partition]:
+            # receive mu from neighbors u with corresponding
+            # message weights, process each message
+            node_i = self.graph.node_dict[node_idx]
+            if self.graph.s[node_idx, node_idx] == 0:
+                for l in range(self.graph.m):
+                    self.graph.y_hat[node_idx, l] = self.mu_1 * self.graph.s[node_idx, node_idx] * \
+                                                        self.graph.y[node_idx, l] + \
+                                                        self.mu_3 * 1. / self.graph.m
+                    for neigh in self.graph.edge_dict[node_i]:
+                        self.graph.y_hat[node_idx, l] += self.mu_2 * node_i.neighbor_distrib[neigh][l]
+            self.graph.y_hat[node_idx, :] /= (node_i.m_vl * self.graph.m)
 def build_first_graph(
                         data : NDArray,
                         labels : NDArray,
                         percentage : float = 0.1,
                         autoencoder : keras.Model = None,
+                        task : keras.Model = None,
                         partitions : int = 10
     ):
     """
@@ -114,7 +116,9 @@ def build_first_graph(
     sample_labeled = sample[:sample.shape[0]//2, :]
     sample_unlabeled = sample[sample.shape[0]//2:, :]
     assert autoencoder is not None, "no autoencoder found"
+
     embeddings = autoencoder.predict(sample_labeled)
+    graph.task_outputs = task.predict(autoencoder.predict(sample))
     for i in range(sample_labeled.shape[0]):
         bs1 = BitSet(embeddings[i, 0])
         bs2 = BitSet(embeddings[i, 1])
@@ -134,7 +138,7 @@ def build_first_graph(
         chunks[lab] += [enum]
         for i in range(len(chunks[lab]) - 1):
             graph.add_edge(graph.node_dict[enum], graph.node_dict[chunks[lab][i]])
-
+    graph.embeddings = np.vstack((embeddings, embeddings_unlabeled))
     return graph, indices, lsh, chunks
 
 if __name__ == '__main__':

@@ -18,6 +18,7 @@ from typing import List, Tuple
 # mixed_precision.set_global_policy('mixed_float16')
 from sklearn.cluster import KMeans
 from nptyping import NDArray, Float
+from multiprocessing import Pool
 
 def get_x_y(data: NDArray):
     output_data = data[:, 11:14]
@@ -41,29 +42,38 @@ if __name__ == '__main__':
         '../embeddings/models/encoder_ae_2.hdf5',
         compile=False
     )
+    task_nn = keras.models.load_model(
+        '../embeddings/models/task_ae_2.hdf5',
+        compile = False
+    )
     graph, indices, lsh, chunks = build_first_graph(
         data=x,
         labels=y,
-        percentage=0.00001,
+        percentage=0.0001,
         autoencoder=autoencoder,
+        task = task_nn,
         partitions = 10)
     #ax = sns.heatmap(graph.weights == 0)
     #plt.savefig('heat_map.png', dpi = 300)
 
+    #12, 1, 1e-2, 12.3
     de = DistExpander(
                       graph=graph,
-                      mu_1 = 5e-2,
-                      mu_2 = 5e-5,
-                      mu_3 = 2e-3,
+                      mu_1 = 5,
+                      mu_2 = 1e-5,
+                      mu_3 = 1e-7,
                       partitions = 10,
+                      task_nn = task_nn,
                       max_iter = 1
                       )
     de.lsh = lsh
     de.chunks = chunks
 
     for i in range(100):
-        de.run_iter()
-        true_labels = y[indices]
-        print(np.mean(abs(true_labels - de.graph.y_hat), axis = 0))
-        print(np.linalg.norm(true_labels - de.graph.y_hat))
+        for p in range(de.partitions):
+            de.run_iter(p)
+            true_labels = y[indices]
+            #print(true_labels.shape, de.graph.y_hat.shape)
+            #print(np.mean(abs(true_labels - de.graph.y_hat), axis = 0))
+            print(np.linalg.norm(true_labels - de.graph.y_hat))
 

@@ -159,7 +159,7 @@ def generate_motion_sequence_embedding_ae(
     model = Autoencoder(embedding_output_dim, encoder, decoder, task)
 
     model.compile(optimizer="adam", loss=['kl_divergence', 'mse'])
-    #model.compile(optimizer = 'adam', loss = ['kl_divergence'])
+    #model.compile(optimizer = 'adam', loss = ['kl_divergence'])a
     weights = None
     if record:
         weights = []
@@ -214,7 +214,7 @@ if __name__ == '__main__':
 
     (X, y) = generate_positive_data_and_labels(data, sequence_window)
     if TRAINING:
-        (model, encoder, decoder, task , weight_logs) = \
+        (model, encoder, decoder, task, weight_logs) = \
             generate_motion_sequence_embedding_ae(X, y, 2, sequence_window)
         encoder.save('models/encoder_ae_2.hdf5', 'hdf5')
         decoder.save('models/decoder_ae_2.hdf5', 'hdf5')
@@ -242,18 +242,3 @@ if __name__ == '__main__':
             df_embedding['partitions'] = kmeans.labels_[:SUB_SAMPLES].astype(str).reshape(-1, 1)
             fig = px.scatter(df_embedding, x=dim1, y=dim2, color='partitions')
             fig.write_image("ae.svg", format = 'svg')
-
-    #fig = px.scatter_3d(df_embedding, x = 'dim_0', y = 'dim_1', z = 'dim_2', color = 'partitions')
-    #fig.show()
-    #normalized_embedding = normalize_coordinates(embedding_output[:SUB_SAMPLES, :])
-    #normalized_task_space = normalize_coordinates(y[:SUB_SAMPLES, :])
-    #print("trained:", pairwise_distance_ratio(normalized_embedding, normalized_task_space))
-    #randomized_encoder = get_simple_encoder(3, sequence_window)
-    #randomized_output = randomized_encoder.predict(X[:SUB_SAMPLES, :])
-    #df_random = pd.DataFrame(data = randomized_output, columns = ['x', 'y', 'z'])
-    #df_random['partitions'] = kmeans.labels_[:SUB_SAMPLES].astype(str).reshape(-1, 1)
-    #fig = px.scatter_3d(df_random, x='x', y='y', z='z', color='partitions')
-    #fig.show()
-
-    #normalized_random_embedding = normalize_coordinates(randomized_output)
-    #print("randomized:", pairwise_distance_ratio(normalized_random_embedding, normalized_task_space))

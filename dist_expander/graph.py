@@ -17,10 +17,13 @@ class Node:
         self.neighbors = 0
         self.m_vl = 0.0
 
+    def get_embedding(self):
+        return [self.key[0].floating_point.asdtype(np.float64), self.key[1].floating_point.asdtype(np.float64)]
+
 # This is an undirected graph
 class Graph:
     def __init__(self, embedding_length : int = 32,
-                 label_size : int = 3):
+                 label_size : int = 3, embedding_size : int = 2):
         self.v = 0
         self.vl = 0
         self.vu = 0
@@ -29,9 +32,10 @@ class Graph:
         self.edges : Set[Tuple[Node, Node]] = None
         self.edge_dict : Dict[Node, Set[Node]] = {}
         self.s = np.empty((0, 0)).reshape(0, 0)
-        #self.weights = np.empty((0, 0)).reshape(0, 0)
         self.y = np.empty((0, self.m))
         self.y_hat = np.empty((0, self.m))
+        self.embeddings = None
+        self.task_outputs = None
         self.upd = np.empty((0, self.m))
         self.node_dict : Dict[int, Node] = {}
 
@@ -63,7 +67,7 @@ class Graph:
         else:
             self.vu += 1
             self.s[-1, -1] = 0.
-            self.y[-1, :] = 1. / self.m
+            self.y[-1, :] = 0.
             self.y_hat[-1, :] = 1. / self.m
         self.v += 1
 
