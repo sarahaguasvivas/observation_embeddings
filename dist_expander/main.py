@@ -37,6 +37,8 @@ if __name__ == '__main__':
     import plotly.graph_objects as go
     import pandas as pd
     import seaborn as sns
+    from sklearn.metrics import mean_squared_error
+
     sns.set_theme()
     data = genfromtxt("../data/data_Apr_01_20221.csv", delimiter=',',
                       invalid_raise=False)
@@ -55,14 +57,14 @@ if __name__ == '__main__':
         percentage=0.00005,
         autoencoder=autoencoder,
         task = task_nn,
-        partitions = 4)
+        partitions = 10)
 
     de = DistExpander(
                       graph=graph,
-                      mu_1 = 5.,
-                      mu_2 = 1e-4,
-                      mu_3 = 1.,
-                      partitions = 4,
+                      mu_1 = 1e1,
+                      mu_2 = 1e-3,
+                      mu_3 = 1e-5,
+                      partitions = 10,
                       task_nn = task_nn,
                       max_iter = 1,
                       mean_point = np.mean(y, axis = 0)
@@ -73,7 +75,9 @@ if __name__ == '__main__':
         for p in range(de.partitions):
             de.run_iter(p)
         true_labels = y[indices]
-        print(np.linalg.norm(true_labels - de.graph.y_hat))
+        #print(np.linalg.norm(true_labels - de.graph.y_hat))
+        rmse = mean_squared_error(true_labels, de.graph.y_hat, squared = False)
+        print(rmse)
 
     df_yhat = pd.DataFrame(de.graph.y_hat, columns = ['x', 'y', 'z'])
     df_ytrue = pd.DataFrame(true_labels, columns = ['x', 'y', 'z'])

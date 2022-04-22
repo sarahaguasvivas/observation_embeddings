@@ -44,10 +44,11 @@ def similarity_score(node0 : Node, node1: Node,
     assert len(node1.key) == latent_dim
     a = node0.get_embedding()
     b = node1.get_embedding()
-    weight = 1. / np.linalg.norm(a - b)
-    if np.isinf(weight) or np.isnan(weight):
-        return 10
-    return weight
+    #weight = 1. / np.linalg.norm(a - b)
+    #if np.isinf(weight) or np.isnan(weight):
+    #    return 10
+    #return weight
+    return np.dot(a, b)
 
 class DistExpander:
     def __init__(self, graph : Graph,
@@ -87,7 +88,7 @@ class DistExpander:
             # message weights, process each message
             node_i = self.graph.node_dict[node_idx]
             self.graph.y_hat[node_idx, :] = self.mu_1 * self.graph.s[node_idx, node_idx] * \
-                                                self.graph.y[node_idx, :] + self.mu_3 * self.mean_point
+                                                self.graph.y[node_idx, :] + self.mu_3 * 1. / self.graph.m #self.graph.task_outputs[node_i]
             for neigh, dist in node_i.neighbor_distrib.items():
                 dist = node_i.neighbor_distrib[neigh]
                 weight = similarity_score(node_i, neigh)
@@ -133,7 +134,7 @@ def build_first_graph(
         bs2 = BitSet(embeddings_unlabeled[i, 1])
         node = Node(key = [bs1, bs2], label = None)
         graph.add_node(node)
-        graph.y_hat[node.id, :] = np.mean(labels, axis = 0)
+        #graph.y_hat[node.id, :] = np.mean(labels, axis = 0)
 
     lsh.fit(np.vstack((embeddings, embeddings_unlabeled)))
     chunks = [[]]*partitions
