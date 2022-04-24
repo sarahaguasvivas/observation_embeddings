@@ -38,7 +38,7 @@ if __name__ == '__main__':
     import pandas as pd
     import seaborn as sns
     from sklearn.metrics import mean_squared_error
-    PARTITIONS = 5
+    PARTITIONS = 10
     sns.set_theme()
     data = genfromtxt("../data/data_Apr_01_20221.csv", delimiter=',',
                       invalid_raise=False)
@@ -62,8 +62,8 @@ if __name__ == '__main__':
 
     de = DistExpander(
                       graph=graph,
-                      mu_1 = 1e2,
-                      mu_2 = 1e-10,
+                      mu_1 = 1e-1,
+                      mu_2 = 5e-10,
                       mu_3 = 1e-10,
                       partitions = PARTITIONS,
                       task_nn = task_nn,
@@ -72,14 +72,22 @@ if __name__ == '__main__':
                       )
     de.lsh = lsh
     de.chunks = chunks
-
     true_labels = y[indices]
 
+    fig = go.Figure()
+    fig.add_trace(go.Scatter3d(x=true_labels[unlabeled_idx:, 0],
+                               y=true_labels[unlabeled_idx:, 1],
+                               z=true_labels[unlabeled_idx:, 2], name='true'))
+    fig.add_trace(go.Scatter3d(x=de.graph.y_hat[unlabeled_idx:, 0],
+                               y=de.graph.y_hat[unlabeled_idx:, 1],
+                               z=de.graph.y_hat[unlabeled_idx:, 2], name='assigned'))
+    fig.show()
+    rmse = [mean_squared_error(true_labels, de.graph.y_hat, squared = False)]
     for i in range(5):
         for p in range(de.partitions):
             de.run_iter(p)
-        rmse = mean_squared_error(true_labels, de.graph.y_hat, squared = False)
-        print(rmse)
+        rmse += [mean_squared_error(true_labels, de.graph.y_hat, squared = False)]
+        print(rmse[-1])
 
     df_yhat = pd.DataFrame(de.graph.y_hat, columns = ['x', 'y', 'z'])
     df_ytrue = pd.DataFrame(true_labels, columns = ['x', 'y', 'z'])
@@ -92,4 +100,8 @@ if __name__ == '__main__':
                                z = de.graph.y_hat[unlabeled_idx:, 2], name = 'assigned'))
     fig.show()
     #fig.write_image("dist_expander_learned.svg", format='svg')
+
+    plt.figure()
+    sns.scatterplot(x = np.arange(10), y = rmse)
+    plt.show()
 

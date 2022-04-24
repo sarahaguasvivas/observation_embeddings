@@ -18,13 +18,13 @@ def bin_to_float(binary):
 #           It is a container class (similar to an union in
 #           embedded)
 class BitSet:
-    def __init__(self, float_val : np.float16 = 0.0):
+    def __init__(self, float_val : np.float32 = 0.0):
         self.floating_point = None
         self.binary : bitarray = None
         self.update_float(float_val)
 
-    def update_float(self, x : np.float16 = 0.0):
-        self.floating_point = np.float16(x)
+    def update_float(self, x : np.float32 = 0.0):
+        self.floating_point = np.float32(x)
         bin_str = float_to_bin(float(x))
         self.binary = bitarray(bin_str, endian = 'little')
 

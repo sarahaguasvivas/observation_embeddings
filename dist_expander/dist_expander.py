@@ -44,11 +44,11 @@ def similarity_score(node0 : Node, node1: Node,
     assert len(node1.key) == latent_dim
     a = node0.get_embedding()
     b = node1.get_embedding()
-    #weight = 1. / np.linalg.norm(a - b)
-    #if np.isinf(weight) or np.isnan(weight):
-    #    return 10
-    #return weight
-    return np.dot(a, b)
+    if np.linalg.norm(a - b) < 1e-30:
+        return 1
+    else:
+        return 1. / np.linalg.norm(a - b)
+    #return np.dot(a, b)
 
 class DistExpander:
     def __init__(self, graph : Graph,
@@ -87,12 +87,13 @@ class DistExpander:
             # receive mu from neighbors u with corresponding
             # message weights, process each message
             node_i = self.graph.node_dict[node_idx]
-            self.graph.y_hat[node_idx, :] = self.mu_1 * self.graph.s[node_idx, node_idx] * \
-                                                self.graph.y[node_idx, :] + self.mu_3 * self.graph.task_outputs[node_idx, :]
-            for neigh, dist in node_i.neighbor_distrib.items():
-                weight = similarity_score(node_i, neigh)
-                self.graph.y_hat[node_idx, :] += self.mu_2 * np.array(dist) * weight
-            self.graph.y_hat[node_idx, :] /= node_i.m_vl
+            if self.graph.s[node_idx, node_idx] == 0:
+                self.graph.y_hat[node_idx, :] = self.mu_1 * self.graph.s[node_idx, node_idx] * \
+                                                    self.graph.y[node_idx, :] + self.mu_3 * self.graph.task_outputs[node_idx, :]
+                for neigh, dist in node_i.neighbor_distrib.items():
+                    weight = similarity_score(node_i, neigh)
+                    self.graph.y_hat[node_idx, :] += self.mu_2 * np.array(dist) * weight
+                self.graph.y_hat[node_idx, :] /= node_i.m_vl
 
 def build_first_graph(
                         data : NDArray,
@@ -141,7 +142,8 @@ def build_first_graph(
     for enum, lab in enumerate(lsh.labels_):
         chunks[lab] += [enum]
         for i in range(len(chunks[lab]) - 1):
-            graph.add_edge(graph.node_dict[enum], graph.node_dict[chunks[lab][i]])
+            if similarity_score(graph.node_dict[enum], graph.node_dict[chunks[lab][i]]) > 0.2:
+                graph.add_edge(graph.node_dict[enum], graph.node_dict[chunks[lab][i]])
     graph.embeddings = np.vstack((embeddings, embeddings_unlabeled))
     return graph, indices, lsh, chunks, int(len(indices)*labeled_to_unlabeled)
 
