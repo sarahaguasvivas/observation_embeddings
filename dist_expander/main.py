@@ -38,7 +38,7 @@ if __name__ == '__main__':
     import pandas as pd
     import seaborn as sns
     from sklearn.metrics import mean_squared_error
-
+    PARTITIONS = 5
     sns.set_theme()
     data = genfromtxt("../data/data_Apr_01_20221.csv", delimiter=',',
                       invalid_raise=False)
@@ -54,20 +54,21 @@ if __name__ == '__main__':
     graph, indices, lsh, chunks = build_first_graph(
         data=x,
         labels=y,
-        percentage=0.00005,
+        percentage=0.0005,
         autoencoder=autoencoder,
         task = task_nn,
-        partitions = 10)
+        partitions = PARTITIONS,
+        labeled_to_unlabeled = 0.9)
 
     de = DistExpander(
                       graph=graph,
-                      mu_1 = 1e1,
-                      mu_2 = 1e-3,
-                      mu_3 = 1e-5,
-                      partitions = 10,
+                      mu_1 = 1e10,
+                      mu_2 = 1e-1,
+                      mu_3 = 1e-1,
+                      partitions = PARTITIONS,
                       task_nn = task_nn,
                       max_iter = 1,
-                      mean_point = np.mean(y, axis = 0)
+                      mean_point = np.median(y, axis = 0)
                       )
     de.lsh = lsh
     de.chunks = chunks
@@ -75,13 +76,11 @@ if __name__ == '__main__':
         for p in range(de.partitions):
             de.run_iter(p)
         true_labels = y[indices]
-        #print(np.linalg.norm(true_labels - de.graph.y_hat))
         rmse = mean_squared_error(true_labels, de.graph.y_hat, squared = False)
         print(rmse)
 
     df_yhat = pd.DataFrame(de.graph.y_hat, columns = ['x', 'y', 'z'])
     df_ytrue = pd.DataFrame(true_labels, columns = ['x', 'y', 'z'])
-
     fig = go.Figure()
     fig.add_trace(go.Scatter3d(x=true_labels[:, 0], y=true_labels[:, 1], z= true_labels[:, 2], name = 'true'))
     fig.add_trace(go.Scatter3d(x = de.graph.y_hat[:, 0], y = de.graph.y_hat[:, 1], z = de.graph.y_hat[:, 2], name = 'assigned'))

@@ -88,11 +88,10 @@ class DistExpander:
             # message weights, process each message
             node_i = self.graph.node_dict[node_idx]
             self.graph.y_hat[node_idx, :] = self.mu_1 * self.graph.s[node_idx, node_idx] * \
-                                                self.graph.y[node_idx, :] + self.mu_3 * 1. / self.graph.m #self.graph.task_outputs[node_i]
+                                                self.graph.y[node_idx, :] #+ self.mu_3 * self.graph.task_outputs[node_idx, :]
             for neigh, dist in node_i.neighbor_distrib.items():
-                dist = node_i.neighbor_distrib[neigh]
                 weight = similarity_score(node_i, neigh)
-                self.graph.y_hat[node_idx, :] += self.mu_2 * dist * weight
+                self.graph.y_hat[node_idx, :] += self.mu_2 * np.array(dist) * weight
             self.graph.y_hat[node_idx, :] /= node_i.m_vl
 
 def build_first_graph(
@@ -101,7 +100,8 @@ def build_first_graph(
                         percentage : float = 0.1,
                         autoencoder : keras.Model = None,
                         task : keras.Model = None,
-                        partitions : int = 10
+                        partitions : int = 10,
+                        labeled_to_unlabeled = 0.9
     ):
     """
         data is the original dataset 
@@ -115,8 +115,8 @@ def build_first_graph(
                                replace= False)
     sample = data[indices]
     sampled_labels = labels[indices]
-    sample_labeled = sample[:sample.shape[0]//2, :]
-    sample_unlabeled = sample[sample.shape[0]//2:, :]
+    sample_labeled = sample[:int(len(indices)*labeled_to_unlabeled), :]
+    sample_unlabeled = sample[int(len(indices)*labeled_to_unlabeled):, :]
     assert autoencoder is not None, "no autoencoder found"
 
     embeddings = autoencoder.predict(sample_labeled)
@@ -124,20 +124,20 @@ def build_first_graph(
     for i in range(sample_labeled.shape[0]):
         bs1 = BitSet(embeddings[i, 0])
         bs2 = BitSet(embeddings[i, 1])
-        # I was sending out the wrong sample
         node = Node(key=[bs1, bs2], label=sampled_labels[i, :])
         graph.add_node(node)
-    embeddings_unlabeled = autoencoder.predict(sample_unlabeled)
 
+    embeddings_unlabeled = autoencoder.predict(sample_unlabeled)
     for i in range(sample_unlabeled.shape[0]):
         bs1 = BitSet(embeddings_unlabeled[i, 0])
         bs2 = BitSet(embeddings_unlabeled[i, 1])
         node = Node(key = [bs1, bs2], label = None)
         graph.add_node(node)
-        #graph.y_hat[node.id, :] = np.mean(labels, axis = 0)
 
     lsh.fit(np.vstack((embeddings, embeddings_unlabeled)))
-    chunks = [[]]*partitions
+    chunks = {}
+    for i in range(partitions):
+        chunks[i] = []
     for enum, lab in enumerate(lsh.labels_):
         chunks[lab] += [enum]
         for i in range(len(chunks[lab]) - 1):
