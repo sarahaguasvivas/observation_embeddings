@@ -51,10 +51,10 @@ if __name__ == '__main__':
         '../embeddings/models/task_ae_2.hdf5',
         compile = False
     )
-    graph, indices, lsh, chunks = build_first_graph(
+    graph, indices, lsh, chunks, unlabeled_idx = build_first_graph(
         data=x,
         labels=y,
-        percentage=0.0005,
+        percentage=0.001,
         autoencoder=autoencoder,
         task = task_nn,
         partitions = PARTITIONS,
@@ -62,9 +62,9 @@ if __name__ == '__main__':
 
     de = DistExpander(
                       graph=graph,
-                      mu_1 = 1e10,
-                      mu_2 = 1e-1,
-                      mu_3 = 1e-1,
+                      mu_1 = 1e2,
+                      mu_2 = 1e-10,
+                      mu_3 = 1e-10,
                       partitions = PARTITIONS,
                       task_nn = task_nn,
                       max_iter = 1,
@@ -72,18 +72,24 @@ if __name__ == '__main__':
                       )
     de.lsh = lsh
     de.chunks = chunks
-    for i in range(10):
+
+    true_labels = y[indices]
+
+    for i in range(5):
         for p in range(de.partitions):
             de.run_iter(p)
-        true_labels = y[indices]
         rmse = mean_squared_error(true_labels, de.graph.y_hat, squared = False)
         print(rmse)
 
     df_yhat = pd.DataFrame(de.graph.y_hat, columns = ['x', 'y', 'z'])
     df_ytrue = pd.DataFrame(true_labels, columns = ['x', 'y', 'z'])
     fig = go.Figure()
-    fig.add_trace(go.Scatter3d(x=true_labels[:, 0], y=true_labels[:, 1], z= true_labels[:, 2], name = 'true'))
-    fig.add_trace(go.Scatter3d(x = de.graph.y_hat[:, 0], y = de.graph.y_hat[:, 1], z = de.graph.y_hat[:, 2], name = 'assigned'))
+    fig.add_trace(go.Scatter3d(x=true_labels[unlabeled_idx:, 0],
+                               y=true_labels[unlabeled_idx:, 1],
+                               z= true_labels[unlabeled_idx:, 2], name = 'true'))
+    fig.add_trace(go.Scatter3d(x = de.graph.y_hat[unlabeled_idx:, 0],
+                               y = de.graph.y_hat[unlabeled_idx:, 1],
+                               z = de.graph.y_hat[unlabeled_idx:, 2], name = 'assigned'))
     fig.show()
     #fig.write_image("dist_expander_learned.svg", format='svg')
 

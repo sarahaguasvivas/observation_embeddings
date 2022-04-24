@@ -88,7 +88,7 @@ class DistExpander:
             # message weights, process each message
             node_i = self.graph.node_dict[node_idx]
             self.graph.y_hat[node_idx, :] = self.mu_1 * self.graph.s[node_idx, node_idx] * \
-                                                self.graph.y[node_idx, :] #+ self.mu_3 * self.graph.task_outputs[node_idx, :]
+                                                self.graph.y[node_idx, :] + self.mu_3 * self.graph.task_outputs[node_idx, :]
             for neigh, dist in node_i.neighbor_distrib.items():
                 weight = similarity_score(node_i, neigh)
                 self.graph.y_hat[node_idx, :] += self.mu_2 * np.array(dist) * weight
@@ -143,7 +143,7 @@ def build_first_graph(
         for i in range(len(chunks[lab]) - 1):
             graph.add_edge(graph.node_dict[enum], graph.node_dict[chunks[lab][i]])
     graph.embeddings = np.vstack((embeddings, embeddings_unlabeled))
-    return graph, indices, lsh, chunks
+    return graph, indices, lsh, chunks, int(len(indices)*labeled_to_unlabeled)
 
 if __name__ == '__main__':
     data = genfromtxt("../data/data_Apr_01_20221.csv", delimiter=',',
