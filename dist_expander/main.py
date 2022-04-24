@@ -28,7 +28,8 @@ def get_x_y(data: NDArray):
                             0.12456292659044266])
     r = R.from_rotvec([0, 0, np.pi / 4.])
     y = r.apply(output_data)
-    x = np.hstack((data[:, :11], data[:, 14:]))
+    x = np.hstack((min_max_normalization(data[:, :11], -1, 1),
+                   min_max_normalization(data[:, 14:], -0.5, 0.5)))
     return (x, y)
 
 if __name__ == '__main__':
@@ -37,7 +38,7 @@ if __name__ == '__main__':
     import pandas as pd
     import seaborn as sns
     from sklearn.metrics import mean_squared_error
-    PARTITIONS = 10
+    PARTITIONS = 5
     sns.set_theme()
     data = genfromtxt("../data/data_Apr_01_20221.csv", delimiter=',',
                       invalid_raise=False)
@@ -57,17 +58,17 @@ if __name__ == '__main__':
         autoencoder=autoencoder,
         task = task_nn,
         partitions = PARTITIONS,
-        labeled_to_unlabeled = 0.9)
+        labeled_to_unlabeled = 0.95)
 
     de = DistExpander(
                       graph=graph,
-                      mu_1 = 1.,
-                      mu_2 = 1.,
-                      mu_3 = 1.,
+                      mu_1 = 5.,
+                      mu_2 = 1e-1,
+                      mu_3 = 1e-1,
                       partitions = PARTITIONS,
                       task_nn = task_nn,
                       max_iter = 1,
-                      mean_point = np.median(y, axis = 0)
+                      mean_point = [0., 0.005, 0.] #np.mean(y, axis = 0)
                       )
     de.lsh = lsh
     de.chunks = chunks

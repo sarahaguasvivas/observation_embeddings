@@ -139,7 +139,7 @@ def generate_positive_data_and_labels(
     # n_embedding_prediction_labels), axis=0)
     r = R.from_rotvec([0, 0, np.pi / 4.])
     y = r.apply(y)
-    y = min_max_normalization(y, -1, 1)
+    #y = min_max_normalization(y, -1, 1)
     return (X, y)
 
 def generate_motion_sequence_embedding_ae(

@@ -89,7 +89,7 @@ class DistExpander:
             node_i = self.graph.node_dict[node_idx]
             if self.graph.s[node_idx, node_idx] == 0:
                 self.graph.y_hat[node_idx, :] = self.mu_1 * self.graph.s[node_idx, node_idx] * \
-                                                    self.graph.y[node_idx, :] + self.mu_3 * self.graph.task_outputs[node_idx, :]
+                                                    self.graph.y[node_idx, :] #+ self.mu_3 * self.graph.task_outputs[node_idx, :]
                 for neigh, dist in node_i.neighbor_distrib.items():
                     weight = similarity_score(node_i, neigh)
                     self.graph.y_hat[node_idx, :] += self.mu_2 * np.array(dist) * weight
