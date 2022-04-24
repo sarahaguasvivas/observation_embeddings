@@ -28,7 +28,6 @@ def get_x_y(data: NDArray):
                             0.12456292659044266])
     r = R.from_rotvec([0, 0, np.pi / 4.])
     y = r.apply(output_data)
-    y = min_max_normalization(y, -1, 1)
     x = np.hstack((data[:, :11], data[:, 14:]))
     return (x, y)
 
@@ -62,9 +61,9 @@ if __name__ == '__main__':
 
     de = DistExpander(
                       graph=graph,
-                      mu_1 = 1e-1,
-                      mu_2 = 5e-10,
-                      mu_3 = 1e-10,
+                      mu_1 = 1.,
+                      mu_2 = 1.,
+                      mu_3 = 1.,
                       partitions = PARTITIONS,
                       task_nn = task_nn,
                       max_iter = 1,
@@ -82,11 +81,11 @@ if __name__ == '__main__':
                                y=de.graph.y_hat[unlabeled_idx:, 1],
                                z=de.graph.y_hat[unlabeled_idx:, 2], name='assigned'))
     fig.show()
-    rmse = [mean_squared_error(true_labels, de.graph.y_hat, squared = False)]
+    rmse = [1000*mean_squared_error(true_labels, de.graph.y_hat, squared = False)]
     for i in range(5):
         for p in range(de.partitions):
             de.run_iter(p)
-        rmse += [mean_squared_error(true_labels, de.graph.y_hat, squared = False)]
+        rmse += [1000*mean_squared_error(true_labels, de.graph.y_hat, squared = False)]
         print(rmse[-1])
 
     df_yhat = pd.DataFrame(de.graph.y_hat, columns = ['x', 'y', 'z'])
@@ -102,6 +101,6 @@ if __name__ == '__main__':
     #fig.write_image("dist_expander_learned.svg", format='svg')
 
     plt.figure()
-    sns.scatterplot(x = np.arange(10), y = rmse)
+    plt.plot(rmse)
     plt.show()
 
