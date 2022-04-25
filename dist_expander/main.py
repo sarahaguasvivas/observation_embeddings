@@ -68,7 +68,7 @@ if __name__ == '__main__':
                       partitions = PARTITIONS,
                       task_nn = task_nn,
                       max_iter = 1,
-                      mean_point = [0., 0.005, 0.] #np.mean(y, axis = 0)
+                      mean_point = np.mean(y, axis = 0)
                       )
     de.lsh = lsh
     de.chunks = chunks

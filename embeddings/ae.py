@@ -45,7 +45,7 @@ class Autoencoder(keras.Model):
 def get_simple_encoder(latent_dim=3, seq_window=3):
     encoder_inputs = keras.Input(shape=(11 * seq_window + 2,))
     encoder_inputs = keras.layers.Reshape((-1, 1))(encoder_inputs)
-    x = keras.layers.GRU(11,
+    x = keras.layers.GRU(13,
                            kernel_initializer='random_normal')(encoder_inputs)
     x = keras.layers.Dense(latent_dim , kernel_initializer='random_normal' )(x)
     encoder = keras.Model(encoder_inputs, x,
@@ -133,7 +133,7 @@ def generate_positive_data_and_labels(
             sequence_window=sequence_window)
 
     X = p_signal_sequence  # np.concatenate((p_signal_sequence, n_signal_sequence), axis = 0)
-    X = min_max_normalization(X, -1, 1)
+    #X = min_max_normalization(X, -1, 1)
     X = np.hstack((X, p_input_sequence))
     y = prediction_labels  # np.concatenate((p_embedding_prediction_labels,
     # n_embedding_prediction_labels), axis=0)
@@ -210,7 +210,7 @@ if __name__ == '__main__':
     import pandas as pd
     sequence_window = 1
     SUB_SAMPLES = NUM_P_SAMPLES #40000
-    TRAINING = False
+    TRAINING = True
 
     (X, y) = generate_positive_data_and_labels(data, sequence_window)
     if TRAINING:

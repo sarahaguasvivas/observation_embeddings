@@ -163,7 +163,7 @@ if __name__ == '__main__':
                             compile=False
                   )
     graph, indices, _, _ = build_first_graph(
-                              data = np.hstack((data[:, :11], data[:, 14:])),
+                              data = np.hstack((data[:, :11], min_max_normalization([:, 14:], -0.5, 0.5))),
                               labels= y,
                               percentage = 0.001,
                               autoencoder = autoencoder)
