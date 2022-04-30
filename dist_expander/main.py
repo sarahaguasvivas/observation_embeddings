@@ -58,7 +58,7 @@ if __name__ == '__main__':
         autoencoder=autoencoder,
         task = task_nn,
         partitions = PARTITIONS,
-        labeled_to_unlabeled = 0.95)
+        labeled_to_unlabeled = 0.90)
 
     de = DistExpander(
                       graph=graph,
