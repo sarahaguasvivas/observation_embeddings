@@ -24,8 +24,39 @@ from nptyping import NDArray, Float
 
 NUM_N_SAMPLES = 0
 NUM_P_SAMPLES = 949207  # 900000
-data = genfromtxt("../data/data_Apr_01_20221.csv", delimiter=',',
+data = genfromtxt("../../data/data_Apr_01_20221.csv", delimiter=',',
                   invalid_raise=False)
+
+def tf_neg_distance(x):
+    x_sum = tf.reduce_sum(x**2, 1)
+    distance = tf.reshape(x_sum, [-1, 1])
+    return -(distance - 2*tf.matmul(x, tf.transpose(x) + tf.transpose(distance)))
+
+def tsne_loss(x, y_pred):
+    distances = tf_neg_distance(x)
+    inv_distances = tf.pow(1. - distances, -1)
+    #inv_distances = tf.linalg.set_diag(inv_distances,
+    #                            tf.zeros(inv_distances.shape[-1]))
+    return inv_distances / tf.reduce_sum(inv_distances)
+
+    #n = 100
+    #p_f = np.zeros((n, n))
+    #p_b = np.zeros((n, n))
+    #q = np.zeros((n, y_pred.shape[-1]))
+    #sigma = tf.math.reduce_std(x)
+    #for i in range(n):
+    #    for j in range(n):
+    #        p_f[i][j]= tf.math.exp(-tf.norm(x[i, :] - x[j, :])**2 /
+    #                                            (2*sigma[i, :]**2))
+    #        p_b[i][j] = tf.math.exp(-tf.norm(x[j, :] - x[i, :])**2 /
+    #                           (2 * sigma[i, :]**2))
+    #        q = 1. / (1 + np.linalg.norm(np.asarray(y_pred[i, :] - y_pred[j, :]))**2)
+    #p_f = p_f / np.reduce_sum(p_f, axis = 0)
+    #p_b = p_b / np.reduce_sum(p_b, axis = 0)
+
+    #p = (p_f + p_b) / (2*n)
+    #q = q / tf.reduce_sum(q)
+    #return np.reduce_sum(p * tf.log(p / q))
 
 class Autoencoder(keras.Model):
     def __init__(self, embed_dim, encoder, decoder, task):
@@ -39,13 +70,13 @@ class Autoencoder(keras.Model):
         encoded = self.encoder(x)
         decoded = self.decoder(encoded)
         task_done = self.task(encoded)
-        #return [decoded, task_done]
-        return [decoded]
+        return [decoded, task_done, encoded]
+        #return [decoded]
 
 def get_simple_encoder(latent_dim=3, seq_window=3):
-    encoder_inputs = keras.Input(shape=(11 * seq_window,))
+    encoder_inputs = keras.Input(shape=(11 * seq_window + 2,))
     encoder_inputs = keras.layers.Reshape((-1, 1))(encoder_inputs)
-    x = keras.layers.GRU(11,
+    x = keras.layers.GRU(13,
                            kernel_initializer='random_normal')(encoder_inputs)
     x = keras.layers.Dense(latent_dim , kernel_initializer='random_normal' )(x)
     encoder = keras.Model(encoder_inputs, x,
@@ -56,7 +87,7 @@ def get_simple_encoder(latent_dim=3, seq_window=3):
 def get_simple_decoder(latent_dim=3, seq_window=3):
     latent_inputs = keras.Input(shape=(latent_dim,))
     latent_inputs = keras.layers.Reshape((-1, 1))(latent_inputs)
-    x = keras.layers.GRU(11)(latent_inputs)
+    x = keras.layers.GRU(13)(latent_inputs)
     decoder = keras.Model(latent_inputs, x, name='decoder')
     decoder.summary()
     return decoder
@@ -134,11 +165,12 @@ def generate_positive_data_and_labels(
 
     X = p_signal_sequence  # np.concatenate((p_signal_sequence, n_signal_sequence), axis = 0)
     X = min_max_normalization(X, -1, 1)
+    X = np.hstack((X, p_input_sequence))
     y = prediction_labels  # np.concatenate((p_embedding_prediction_labels,
     # n_embedding_prediction_labels), axis=0)
     r = R.from_rotvec([0, 0, np.pi / 4.])
     y = r.apply(y)
-    y = min_max_normalization(y, -1, 1)
+    #y = min_max_normalization(y, -1, 1)
     return (X, y)
 
 def generate_motion_sequence_embedding_ae(
@@ -157,29 +189,33 @@ def generate_motion_sequence_embedding_ae(
                     label_size=labels.shape[1])
     model = Autoencoder(embedding_output_dim, encoder, decoder, task)
 
-    #model.compile(optimizer="adam", loss=['cosine_similarity', 'mse'])
-    model.compile(optimizer = 'adam', loss = ['kl_divergence'])
+    model.compile(optimizer="adam", loss=['kl_divergence', 'mse', tsne_loss])
+    #model.compile(optimizer = 'adam', loss = ['kl_divergence'])a
     weights = None
     if record:
         weights = []
         save = keras.callbacks.LambdaCallback(on_epoch_end=lambda batch,
                                                                   logs: weights.append(model
                                                                                        .layers[0].get_weights()[0]))
-        kfold = TimeSeriesSplit(n_splits=2)
+        kfold = TimeSeriesSplit(n_splits=10)
         k_fold_results = []
         for train, test in kfold.split(data, labels):
             x_train = data[train]
             y_train = labels[train]
-            model.fit(x_train, [x_train], epochs=10, verbose=1, batch_size=100,
-                      callbacks=[save], validation_data=(X[test], [X[test]]))
+            #model.fit(x_train, [x_train], epochs=10, verbose=1, batch_size=100,
+            #          callbacks=[save], validation_data=(X[test], [X[test]]))
+            model.fit(x_train, [x_train, y_train, x_train], epochs = 10, verbose = 1, batch_size = 100,
+                      callbacks = [save], validation_data = (X[test], [X[test], labels[test], X[test]]))
     else:
         kfold = TimeSeriesSplit(n_splits=5)
         k_fold_results = []
         for train, test in kfold.split(data, labels):
-            X_train = data[train]
+            x_train = data[train]
             y_train = labels[train]
-            model.fit([X_train, X_train], labels, epochs=10, verbose=1, batch_size=1000)
-    return (model, encoder, decoder, weights)
+            #model.fit([X_train, X_train], labels, epochs=10, verbose=1, batch_size=1000)
+            model.fit(x_train, [x_train, y_train], epochs=10, verbose=1, batch_size=100,
+                      validation_data=(X[test], [X[test], labels[test]]))
+    return (model, encoder, decoder, task, weights)
 
 def normalize_coordinates(x):
     return x / (np.max(x, axis = 0) - np.min(x, axis = 0))
@@ -204,17 +240,17 @@ if __name__ == '__main__':
     import plotly.express as px
     import pandas as pd
     sequence_window = 1
-    SUB_SAMPLES = 40000
+    SUB_SAMPLES = NUM_P_SAMPLES #40000
     TRAINING = True
 
     (X, y) = generate_positive_data_and_labels(data, sequence_window)
     if TRAINING:
-        (model, encoder, decoder, weight_logs) = \
-            generate_motion_sequence_embedding_ae(X, y, 3, sequence_window)
-        encoder.save('models/encoder_ae.hdf5', 'hdf5')
-        decoder.save('models/decoder_ae.hdf5', 'hdf5')
-
-    encoder = keras.models.load_model('models/encoder_ae.hdf5', compile=False)
+        (model, encoder, decoder, task, weight_logs) = \
+            generate_motion_sequence_embedding_ae(X, y, 2, sequence_window)
+        encoder.save('models/encoder_ae_2.hdf5', 'hdf5')
+        decoder.save('models/decoder_ae_2.hdf5', 'hdf5')
+        task.save('models/task_ae_2.hdf5', 'hdf5')
+    encoder = keras.models.load_model('models/encoder_ae_2.hdf5', compile=False)
 
     kmeans = KMeans(n_clusters = 10, random_state = 0).fit(y[:SUB_SAMPLES, :])
 
@@ -223,30 +259,17 @@ if __name__ == '__main__':
 
     df['partitions'] = kmeans.labels_[:SUB_SAMPLES].astype(str).reshape(-1, 1)
     fig = px.scatter_3d(df, x='x', y='y', z='z', color='partitions')
-    fig.show()
+    fig.write_image("task_space.svg", format = 'svg')
 
-    column_names = ['dim_' + str(i) for i in range(3)]
+    column_names = ['dim_' + str(i) for i in range(2)]
 
     embedding_output = encoder.predict(X[:SUB_SAMPLES, :])
     df_embedding = pd.DataFrame(data=embedding_output,
                                 columns= column_names)
-    for i in range(3):
-        for j in range(i + 1, 3):
+    for i in range(2):
+        for j in range(i + 1, 2):
             dim1 = 'dim_' + str(i)
             dim2 = 'dim_' + str(j)
             df_embedding['partitions'] = kmeans.labels_[:SUB_SAMPLES].astype(str).reshape(-1, 1)
             fig = px.scatter(df_embedding, x=dim1, y=dim2, color='partitions')
-            fig.show()
-
-    #normalized_embedding = normalize_coordinates(embedding_output[:SUB_SAMPLES, :])
-    #normalized_task_space = normalize_coordinates(y[:SUB_SAMPLES, :])
-    #print("trained:", pairwise_distance_ratio(normalized_embedding, normalized_task_space))
-    #randomized_encoder = get_simple_encoder(3, sequence_window)
-    #randomized_output = randomized_encoder.predict(X[:SUB_SAMPLES, :])
-    #df_random = pd.DataFrame(data = randomized_output, columns = ['x', 'y', 'z'])
-    #df_random['partitions'] = kmeans.labels_[:SUB_SAMPLES].astype(str).reshape(-1, 1)
-    #fig = px.scatter_3d(df_random, x='x', y='y', z='z', color='partitions')
-    #fig.show()
-
-    #normalized_random_embedding = normalize_coordinates(randomized_output)
-    #print("randomized:", pairwise_distance_ratio(normalized_random_embedding, normalized_task_space))
+            fig.write_image("ae.svg", format = 'svg')
