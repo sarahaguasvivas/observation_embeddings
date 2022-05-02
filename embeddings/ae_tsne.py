@@ -21,6 +21,7 @@ from typing import List, Tuple
 # mixed_precision.set_global_policy('mixed_float16')
 from sklearn.cluster import KMeans
 from nptyping import NDArray, Float
+from sklearn.manifold import TSNE
 
 NUM_N_SAMPLES = 0
 NUM_P_SAMPLES = 949207  # 900000
@@ -33,30 +34,10 @@ def tf_neg_distance(x):
     return -(distance - 2*tf.matmul(x, tf.transpose(x) + tf.transpose(distance)))
 
 def tsne_loss(x, y_pred):
-    distances = tf_neg_distance(x)
-    inv_distances = tf.pow(1. - distances, -1)
-    #inv_distances = tf.linalg.set_diag(inv_distances,
-    #                            tf.zeros(inv_distances.shape[-1]))
-    return inv_distances / tf.reduce_sum(inv_distances)
-
-    #n = 100
-    #p_f = np.zeros((n, n))
-    #p_b = np.zeros((n, n))
-    #q = np.zeros((n, y_pred.shape[-1]))
-    #sigma = tf.math.reduce_std(x)
-    #for i in range(n):
-    #    for j in range(n):
-    #        p_f[i][j]= tf.math.exp(-tf.norm(x[i, :] - x[j, :])**2 /
-    #                                            (2*sigma[i, :]**2))
-    #        p_b[i][j] = tf.math.exp(-tf.norm(x[j, :] - x[i, :])**2 /
-    #                           (2 * sigma[i, :]**2))
-    #        q = 1. / (1 + np.linalg.norm(np.asarray(y_pred[i, :] - y_pred[j, :]))**2)
-    #p_f = p_f / np.reduce_sum(p_f, axis = 0)
-    #p_b = p_b / np.reduce_sum(p_b, axis = 0)
-
-    #p = (p_f + p_b) / (2*n)
-    #q = q / tf.reduce_sum(q)
-    #return np.reduce_sum(p * tf.log(p / q))
+    #distances = tf_neg_distance(x)
+    #inv_distances = tf.pow(1. - distances, -1)
+    #return inv_distances / tf.reduce_sum(inv_distances)
+    pass
 
 class Autoencoder(keras.Model):
     def __init__(self, embed_dim, encoder, decoder, task):
@@ -164,7 +145,7 @@ def generate_positive_data_and_labels(
             sequence_window=sequence_window)
 
     X = p_signal_sequence  # np.concatenate((p_signal_sequence, n_signal_sequence), axis = 0)
-    X = min_max_normalization(X, -1, 1)
+    #X = min_max_normalization(X, -1, 1)
     X = np.hstack((X, p_input_sequence))
     y = prediction_labels  # np.concatenate((p_embedding_prediction_labels,
     # n_embedding_prediction_labels), axis=0)
@@ -176,6 +157,7 @@ def generate_positive_data_and_labels(
 def generate_motion_sequence_embedding_ae(
         data,
         labels,
+        t_sne,
         embedding_output_dim=3,
         sequence_window=20,
         record=True
@@ -189,25 +171,25 @@ def generate_motion_sequence_embedding_ae(
                     label_size=labels.shape[1])
     model = Autoencoder(embedding_output_dim, encoder, decoder, task)
 
-    model.compile(optimizer="adam", loss=['kl_divergence', 'mse', tsne_loss])
-    #model.compile(optimizer = 'adam', loss = ['kl_divergence'])a
+    model.compile(optimizer="adam", loss=['mse', 'mse', 'kl_divergence'])
+    #model.compile(optimizer = 'adam', loss = ['kl_divergence'])
     weights = None
     if record:
         weights = []
         save = keras.callbacks.LambdaCallback(on_epoch_end=lambda batch,
                                                                   logs: weights.append(model
                                                                                        .layers[0].get_weights()[0]))
-        kfold = TimeSeriesSplit(n_splits=10)
+        kfold = TimeSeriesSplit(n_splits=5)
         k_fold_results = []
         for train, test in kfold.split(data, labels):
             x_train = data[train]
             y_train = labels[train]
-            #model.fit(x_train, [x_train], epochs=10, verbose=1, batch_size=100,
-            #          callbacks=[save], validation_data=(X[test], [X[test]]))
-            model.fit(x_train, [x_train, y_train, x_train], epochs = 10, verbose = 1, batch_size = 100,
-                      callbacks = [save], validation_data = (X[test], [X[test], labels[test], X[test]]))
+            #model.fit(x_train, [x_train, y_train], epochs = 5, verbose = 1, batch_size = 1000,
+            #          callbacks = [save], validation_data = (X[test], [X[test], labels[test]]))
+            model.fit(x_train, [x_train, y_train, t_sne[train]], epochs=5, verbose=1, batch_size=1000,
+                      callbacks = [save], validation_data = (X[test], [X[test], labels[test], t_sne[test]]))
     else:
-        kfold = TimeSeriesSplit(n_splits=5)
+        kfold = TimeSeriesSplit(n_splits=10)
         k_fold_results = []
         for train, test in kfold.split(data, labels):
             x_train = data[train]
@@ -244,13 +226,16 @@ if __name__ == '__main__':
     TRAINING = True
 
     (X, y) = generate_positive_data_and_labels(data, sequence_window)
+    t_sne = TSNE(n_components=2,
+                 learning_rate = 'auto',
+                 init = 'random').fit_transform(X)
     if TRAINING:
         (model, encoder, decoder, task, weight_logs) = \
-            generate_motion_sequence_embedding_ae(X, y, 2, sequence_window)
-        encoder.save('models/encoder_ae_2.hdf5', 'hdf5')
-        decoder.save('models/decoder_ae_2.hdf5', 'hdf5')
-        task.save('models/task_ae_2.hdf5', 'hdf5')
-    encoder = keras.models.load_model('models/encoder_ae_2.hdf5', compile=False)
+            generate_motion_sequence_embedding_ae(X, y, t_sne, 2, sequence_window)
+        encoder.save('models/encoder_ae_tsne.hdf5', 'hdf5')
+        decoder.save('models/decoder_ae_tsne.hdf5', 'hdf5')
+        task.save('models/task_ae_tsne.hdf5', 'hdf5')
+    encoder = keras.models.load_model('models/encoder_ae_tsne.hdf5', compile=False)
 
     kmeans = KMeans(n_clusters = 10, random_state = 0).fit(y[:SUB_SAMPLES, :])
 
@@ -266,10 +251,13 @@ if __name__ == '__main__':
     embedding_output = encoder.predict(X[:SUB_SAMPLES, :])
     df_embedding = pd.DataFrame(data=embedding_output,
                                 columns= column_names)
-    for i in range(2):
-        for j in range(i + 1, 2):
-            dim1 = 'dim_' + str(i)
-            dim2 = 'dim_' + str(j)
-            df_embedding['partitions'] = kmeans.labels_[:SUB_SAMPLES].astype(str).reshape(-1, 1)
-            fig = px.scatter(df_embedding, x=dim1, y=dim2, color='partitions')
-            fig.write_image("ae.svg", format = 'svg')
+    df_embedding['partitions'] = kmeans.labels_[:SUB_SAMPLES].astype(str).reshape(-1, 1)
+    #for i in range(2):
+    #    for j in range(i + 1, 2):
+    #        dim1 = 'dim_' + str(i)
+    #        dim2 = 'dim_' + str(j)
+    #
+    #        fig = px.scatter(df_embedding, x=dim1, y=dim2, color='partitions')
+    #        fig.write_image("ae_tsne.svg", format = 'svg')
+    fig = px.scatter(df_embedding, x = 'dim_0', y = 'dim_1', color = 'partitions')
+    fig.write_image("a_tsne.svg", format = 'svg')
