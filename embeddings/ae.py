@@ -19,6 +19,7 @@ from typing import List, Tuple
 # mixed_precision.set_global_policy('mixed_float16')
 from sklearn.cluster import KMeans
 from nptyping import NDArray, Float
+from helpers.helpers import t_sne_score
 
 NUM_N_SAMPLES = 0
 NUM_P_SAMPLES = 949207  # 900000
@@ -53,8 +54,8 @@ def get_simple_encoder(latent_dim=3, seq_window=3):
 
 def get_simple_decoder(latent_dim=3, seq_window=3):
     latent_inputs = keras.Input(shape=(latent_dim,))
-    latent_inputs = keras.layers.Reshape((-1, 1))(latent_inputs)
-    x = keras.layers.GRU(13)(latent_inputs)
+    x = keras.layers.Reshape((-1, 1))(latent_inputs)
+    x = keras.layers.GRU(13)(x)
     decoder = keras.Model(latent_inputs, x, name='decoder')
     decoder.summary()
     return decoder
@@ -88,7 +89,7 @@ def generate_positive_sample_motion_sequences(
                             -0.0009492466342635453,
                             0.12456292659044266])
 
-    input_data = min_max_normalization(input_data, -0.5, 0.5)
+    #input_data = min_max_normalization(input_data, -0.5, 0.5)
     n_inputs = input_data.shape[1]
     n_outputs = output_data.shape[1]
     n_signal_channels = signal_data.shape[1]
@@ -164,14 +165,14 @@ def generate_motion_sequence_embedding_ae(
         save = keras.callbacks.LambdaCallback(on_epoch_end=lambda batch,
                                                                   logs: weights.append(model
                                                                                        .layers[0].get_weights()[0]))
-        kfold = TimeSeriesSplit(n_splits=5)
+        kfold = TimeSeriesSplit(n_splits=10)
         k_fold_results = []
         for train, test in kfold.split(data, labels):
             x_train = data[train]
             y_train = labels[train]
             #model.fit(x_train, [x_train], epochs=10, verbose=1, batch_size=100,
             #          callbacks=[save], validation_data=(X[test], [X[test]]))
-            model.fit(x_train, [x_train, y_train], epochs = 5, verbose = 1, batch_size = 1000,
+            model.fit(x_train, [x_train, y_train], epochs = 5, verbose = 1, batch_size = 2000,
                       callbacks = [save], validation_data = (X[test], [X[test], labels[test]]))
     else:
         kfold = TimeSeriesSplit(n_splits=5)
@@ -207,7 +208,7 @@ if __name__ == '__main__':
     import plotly.express as px
     import pandas as pd
     sequence_window = 1
-    SUB_SAMPLES = NUM_P_SAMPLES #40000
+    SUB_SAMPLES = 40000
     TRAINING = True
 
     (X, y) = generate_positive_data_and_labels(data, sequence_window)
@@ -233,6 +234,9 @@ if __name__ == '__main__':
     embedding_output = encoder.predict(X[:SUB_SAMPLES, :])
     df_embedding = pd.DataFrame(data=embedding_output,
                                 columns= column_names)
+
+    print(t_sne_score(embedding_output, X[:SUB_SAMPLES, :],
+                      perplexity = 30.0, degrees_of_freedom=3))
     for i in range(2):
         for j in range(i + 1, 2):
             dim1 = 'dim_' + str(i)
@@ -240,3 +244,4 @@ if __name__ == '__main__':
             df_embedding['partitions'] = kmeans.labels_[:SUB_SAMPLES].astype(str).reshape(-1, 1)
             fig = px.scatter(df_embedding, x=dim1, y=dim2, color='partitions')
             fig.write_image("ae.svg", format = 'svg')
+

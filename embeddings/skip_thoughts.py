@@ -21,10 +21,11 @@ from typing import List, Tuple
 # mixed_precision.set_global_policy('mixed_float16')
 from sklearn.cluster import KMeans
 from nptyping import NDArray, Float
+from helpers.helpers import t_sne_score
 
 NUM_N_SAMPLES = 0
 NUM_P_SAMPLES = 100000 #949207  # 900000
-data = genfromtxt("data/data_Apr_01_20221.csv", delimiter=',',
+data = genfromtxt("../data/data_Apr_01_20221.csv", delimiter=',',
                   invalid_raise=False)
 
 class SkipThoughtsAutoencoder(keras.Model):
@@ -42,7 +43,7 @@ class SkipThoughtsAutoencoder(keras.Model):
         return [decoded_prev, decoded_next]
 
 def get_simple_encoder(latent_dim=3, seq_window=3):
-    encoder_inputs = keras.Input(shape=(11 * seq_window,), dtype ="float16")
+    encoder_inputs = keras.Input(shape=(13 * seq_window,), dtype ="float16")
     x = keras.layers.Dense(55, activation='relu')(encoder_inputs)
     x = keras.layers.Dense(22, activation='relu')(x)
     x = keras.layers.Dense(latent_dim)(x)
@@ -54,7 +55,7 @@ def get_simple_decoder(latent_dim=3, seq_window=3):
     latent_inputs = keras.Input(shape=(latent_dim,), dtype = "float16")
     x = keras.layers.Dense(22, activation='sigmoid')(latent_inputs)
     x = keras.layers.Dense(55, activation='sigmoid')(x)
-    x = keras.layers.Dense(seq_window * 11)(x)
+    x = keras.layers.Dense(seq_window * 13)(x)
     decoder = keras.Model(latent_inputs, x, name='decoder')
     decoder.summary()
     return decoder
@@ -122,12 +123,13 @@ def generate_positive_data_and_labels(
             sequence_window=sequence_window)
 
     X = p_signal_sequence  # np.concatenate((p_signal_sequence, n_signal_sequence), axis = 0)
-    X = min_max_normalization(X, -1, 1)
+    #X = min_max_normalization(X, -1, 1)
+    X = np.hstack((X, p_input_sequence))
     y = prediction_labels  # np.concatenate((p_embedding_prediction_labels,
     # n_embedding_prediction_labels), axis=0)
     r = R.from_rotvec([0, 0, np.pi / 4.])
     y = r.apply(y)
-    y = min_max_normalization(y, -1, 1)
+    #y = min_max_normalization(y, -1, 1)
     return (X, y)
 
 def generate_motion_sequence_embedding_ae(
@@ -175,18 +177,18 @@ if __name__ == '__main__':
     import pandas as pd
     sequence_window = 1
     SUB_SAMPLES = 40000
-    TRAINING = False
+    TRAINING = True
 
     (X, y) = generate_positive_data_and_labels(data, sequence_window)
     if TRAINING:
         (model, encoder, decoder_p, decoder_n, weight_logs) = \
-            generate_motion_sequence_embedding_ae(X, y, 3, sequence_window)
+            generate_motion_sequence_embedding_ae(X, y, 2, sequence_window)
         encoder.save('models/encoder_sk.hdf5', 'hdf5')
         decoder_p.save('models/decoder_prev_st.hdf5', 'hdf5')
         decoder_n.save('models/decoder_next_st.hdf5', 'hdf5')
     encoder = keras.models.load_model('models/encoder_sk.hdf5', compile=False)
 
-    kmeans = KMeans(n_clusters=3, random_state=0).fit(y[:SUB_SAMPLES, :])
+    kmeans = KMeans(n_clusters=10, random_state=0).fit(y[:SUB_SAMPLES, :])
 
     df = pd.DataFrame(data=y[:SUB_SAMPLES, :],
                       columns=['x', 'y', 'z'])
@@ -202,7 +204,8 @@ if __name__ == '__main__':
     fig.show()
 
     embedding_output = encoder.predict(X[:SUB_SAMPLES, :])
-
+    print(t_sne_score(embedding_output, X[:SUB_SAMPLES, :],
+                      perplexity=30.0, degrees_of_freedom=3))
     df_embedding = pd.DataFrame(data=embedding_output,
                                 columns=['dim_0', 'dim_1', 'dim_2'])
 

@@ -171,7 +171,7 @@ def generate_motion_sequence_embedding_ae(
                     label_size=labels.shape[1])
     model = Autoencoder(embedding_output_dim, encoder, decoder, task)
 
-    model.compile(optimizer="adam", loss=['mse', 'mse', 'kl_divergence'])
+    model.compile(optimizer="adam", loss=['kl_divergence', 'mse', 'kl_divergence'])
     #model.compile(optimizer = 'adam', loss = ['kl_divergence'])
     weights = None
     if record:
