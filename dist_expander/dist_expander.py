@@ -102,6 +102,7 @@ def build_first_graph(
                         autoencoder : keras.Model = None,
                         task : keras.Model = None,
                         partitions : int = 10,
+                        center_task : List[float] = [0., 0., 0.],
                         labeled_to_unlabeled = 0.9
     ):
     """
@@ -110,6 +111,7 @@ def build_first_graph(
             sampled from data
     """
     graph = Graph()
+    graph.center_task = center_task
     lsh = KMeans(n_clusters = partitions, random_state = 0)
     indices = np.random.choice(data.shape[0],
                         int(data.shape[0]*(2*percentage)),

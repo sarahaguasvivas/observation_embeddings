@@ -38,7 +38,7 @@ if __name__ == '__main__':
     import pandas as pd
     import seaborn as sns
     from sklearn.metrics import mean_squared_error
-    PARTITIONS = 5
+    PARTITIONS = 20
     sns.set_theme()
     data = genfromtxt("../data/data_Apr_01_20221.csv", delimiter=',',
                       invalid_raise=False)
@@ -58,11 +58,12 @@ if __name__ == '__main__':
         autoencoder=autoencoder,
         task = task_nn,
         partitions = PARTITIONS,
-        labeled_to_unlabeled = 0.95)
+        center_task = [0.0025, 0.0025, 0.],
+        labeled_to_unlabeled = 0.90)
 
     de = DistExpander(
                       graph=graph,
-                      mu_1 = 5.,
+                      mu_1 = 1e2,
                       mu_2 = 1e-1,
                       mu_3 = 1e-1,
                       partitions = PARTITIONS,

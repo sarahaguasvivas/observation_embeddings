@@ -36,6 +36,7 @@ class Graph:
         self.y_hat = np.empty((0, self.m))
         self.embeddings = None
         self.task_outputs = None
+        self.center_task = None
         self.upd = np.empty((0, self.m))
         self.node_dict : Dict[int, Node] = {}
 
@@ -63,7 +64,7 @@ class Graph:
             self.vu += 1
             self.s[-1, -1] = 0.
             #self.y[-1, :] = 0.
-            #self.y_hat[-1, :] = 0.
+            self.y_hat[-1, :] = self.center_task
         self.v += 1
 
     def add_edge(self, node1 : Node, node2 : Node):

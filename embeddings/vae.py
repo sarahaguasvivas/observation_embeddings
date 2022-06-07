@@ -86,22 +86,23 @@ def generate_positive_sample_motion_sequences(
     
 def generate_positive_data_and_labels(
         data,
-        sequence_window = 5):
+        sequence_window=5):
     (p_input_sequence, p_signal_sequence, p_output_sequence,
      prediction_labels, p_embedding_prediction_labels) = \
-                                      generate_positive_sample_motion_sequences(
-        input_data=data[:, 14:],
-        output_data=data[:, 11:14],
-        signal_data=data[:, :11],
-        sequence_window=sequence_window)
-    
-    X = p_signal_sequence #np.concatenate((p_signal_sequence, n_signal_sequence), axis = 0)
-    X = min_max_normalization(X, -1, 1)
-    y = prediction_labels #np.concatenate((p_embedding_prediction_labels, 
-                                      #n_embedding_prediction_labels), axis=0)
-    r = R.from_rotvec([0, 0, np.pi/4.])
+        generate_positive_sample_motion_sequences(
+            input_data=data[:, 14:],
+            output_data=data[:, 11:14],
+            signal_data=data[:, :11],
+            sequence_window=sequence_window)
+
+    X = p_signal_sequence  # np.concatenate((p_signal_sequence, n_signal_sequence), axis = 0)
+    #X = min_max_normalization(X, -1, 1)
+    X = np.hstack((X, p_input_sequence))
+    y = prediction_labels  # np.concatenate((p_embedding_prediction_labels,
+    # n_embedding_prediction_labels), axis=0)
+    r = R.from_rotvec([0, 0, np.pi / 4.])
     y = r.apply(y)
-    y = min_max_normalization(y, -1, 1)
+    #y = min_max_normalization(y, -1, 1)
     return (X, y)
 
 class Sampling(keras.layers.Layer):
@@ -160,8 +161,8 @@ class VAE(keras.Model):
         }
 
 def get_simple_encoder_conv(latent_dim=3, seq_window=3):
-    encoder_inputs = keras.Input(shape=(11,))
-    x = keras.layers.Dense(11, activation="relu")(encoder_inputs)
+    encoder_inputs = keras.Input(shape=(13,))
+    x = keras.layers.Dense(5, activation="relu")(encoder_inputs)
     z_mean = keras.layers.Dense(latent_dim, name="z_mean",
                                 activity_regularizer = keras.regularizers.L1(10e-5))(x)
     z_log_var = keras.layers.Dense(latent_dim, name="z_log_var")(x)
@@ -175,7 +176,7 @@ def get_simple_encoder_conv(latent_dim=3, seq_window=3):
 
 def get_simple_decoder_conv(latent_dim=3, seq_window=3):
     latent_inputs = keras.Input(shape=(latent_dim,))
-    decoder_outputs = keras.layers.Dense(11, activation='sigmoid')(latent_inputs)
+    decoder_outputs = keras.layers.Dense(13, activation='relu')(latent_inputs)
     decoder = keras.Model(latent_inputs, decoder_outputs, name="decoder")
     decoder.summary()
     return decoder
@@ -183,7 +184,7 @@ def get_simple_decoder_conv(latent_dim=3, seq_window=3):
 def get_task(latent_dim=3, label_size=3):
     latent = keras.Input(shape=(latent_dim,))
     x = keras.layers.Reshape((1, -1))(latent)
-    x = keras.layers.GRU(20)(x)
+    x = keras.layers.GRU(5)(x)
     x = keras.layers.Dense(label_size)(x)
     task = keras.Model(latent, x, name='task')
     task.summary()
@@ -193,7 +194,7 @@ def generate_motion_sequence_embedding_vae(
         data,
         labels,
         embedding_output_dim=3,
-        sequence_window=20,
+        sequence_window=1,
         record=True
 ):
     data = data.astype(np.float16)
@@ -216,27 +217,28 @@ def generate_motion_sequence_embedding_vae(
         for train, test in kfold.split(data, labels):
             x_train = data[train]
             y_train = labels[train]
-            model.fit(x_train, epochs=10, batch_size=100)
+            model.fit(x_train, epochs=10, batch_size=1000)
     else:
         kfold = TimeSeriesSplit(n_splits=10)
         k_fold_results = []
         for train, test in kfold.split(data, labels):
             x_train = data[train]
             y_train = labels[train]
-            model.fit(x_train, epochs=10, batch_size=100)
+            model.fit(x_train, epochs=10, batch_size=1000)
     return (model, encoder, decoder, weights)
 
 if __name__ == '__main__':
     import pandas as pd
-    SUB_SAMPLES = 40000
+    SUB_SAMPLES = NUM_P_SAMPLES #40000
     TRAINING = True
     NUM_CHANNELS = 11
     sequence_window = 1
 
     (X, y) = generate_positive_data_and_labels(data, sequence_window)
+    print(X.shape, y.shape)
     if TRAINING:
         (model, encoder, decoder, weight_logs) = \
-                              generate_motion_sequence_embedding_vae(X, y, 3,
+                              generate_motion_sequence_embedding_vae(X, y, 2,
                                            sequence_window, record = False)
         encoder.save('../models/encoder_vae.hdf5', 'hdf5')
         decoder.save('../models/decoder_vae.hdf5', 'hdf5')
@@ -250,15 +252,18 @@ if __name__ == '__main__':
     df['partitions'] = kmeans.labels_[:SUB_SAMPLES].astype(str).reshape(-1, 1)
     fig = px.scatter_3d(df, x='x', y='y', z='z', color='partitions')
     fig.show()
-    columns = ['dim_' + str(i) for i in range(3)]
+    columns = ['dim_' + str(i) for i in range(2)]
 
     df_embedding = pd.DataFrame(data = embedding_output[2],
                       columns = columns)
 
     df_embedding['partitions'] = kmeans.labels_[:SUB_SAMPLES].astype(str).reshape(-1, 1)
-    for i in range(3):
-        for j in range(i + 1, 3):
-            dim0 = 'dim_' + str(i)
-            dim1 = 'dim_' + str(j)
-            fig = px.scatter(df_embedding, x = dim0, y = dim1, color = 'partitions')
-            fig.show()
+    for i in range(2):
+        for j in range(i + 1, 2):
+            dim1 = 'dim_' + str(i)
+            dim2 = 'dim_' + str(j)
+            df_embedding['partitions'] = kmeans.labels_[:SUB_SAMPLES].astype(str).reshape(-1, 1)
+            fig = px.scatter(df_embedding, x=dim1, y=dim2, color='partitions')
+            fig.write_image("vae.svg", format = 'svg')
+    #print(t_sne_score(embedding_output, X[:SUB_SAMPLES, :],
+    #                  perplexity = 30.0, degrees_of_freedom=3))
